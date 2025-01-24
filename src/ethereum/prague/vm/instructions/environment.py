@@ -351,8 +351,6 @@ def extcodesize(evm: Evm) -> None:
 
     # OPERATION
     code = get_account(evm.env.state, address).code
-    if is_valid_delegation(code):
-        code = EOA_DELEGATION_SENTINEL
 
     codesize = U256(len(code))
     push(evm.stack, codesize)
@@ -394,8 +392,6 @@ def extcodecopy(evm: Evm) -> None:
 
     # OPERATION
     code = get_account(evm.env.state, address).code
-    if is_valid_delegation(code):
-        code = EOA_DELEGATION_SENTINEL
 
     evm.memory += b"\x00" * extend_memory.expand_by
     value = buffer_read(code, code_start_index, size)
@@ -488,8 +484,6 @@ def extcodehash(evm: Evm) -> None:
         codehash = U256(0)
     else:
         code = account.code
-        if is_valid_delegation(code):
-            code = EOA_DELEGATION_SENTINEL
         codehash = U256.from_be_bytes(keccak256(code))
 
     push(evm.stack, codehash)

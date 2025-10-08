@@ -13,7 +13,7 @@ from shutil import copytree, rmtree
 from tempfile import TemporaryDirectory
 from typing import Final, NamedTuple
 
-from ethereum_types.numeric import U256, Uint
+from ethereum_types.numeric import U64, U256, Uint
 from libcst.tool import main as libcst_tool
 from typing_extensions import override
 
@@ -428,3 +428,63 @@ class ForkBuilder:
             self._copy(package)
             self._modify(working_directory)
             self._commit(package)
+
+    def modify_target_blob_gas_per_block(
+        self, target_blob_gas_per_block: U64
+    ) -> None:
+        """Append a `CodemodArgs` that sets `TARGET_BLOB_GAS_PER_BLOCK`."""
+        self.modifiers.append(
+            SetConstant(
+                "vm.gas.TARGET_BLOB_GAS_PER_BLOCK",
+                repr(target_blob_gas_per_block),
+            )
+        )
+
+    def modify_gas_per_blob(self, gas_per_blob: U64) -> None:
+        """Append a `CodemodArgs` that sets `GAS_PER_BLOB`."""
+        self.modifiers.append(
+            SetConstant(
+                "vm.gas.GAS_PER_BLOB",
+                repr(gas_per_blob),
+            )
+        )
+
+    def modify_min_blob_gasprice(self, min_blob_gasprice: Uint) -> None:
+        """Append a `CodemodArgs` that sets `MIN_BLOB_GASPRICE`."""
+        self.modifiers.append(
+            SetConstant(
+                "vm.gas.MIN_BLOB_GASPRICE",
+                repr(min_blob_gasprice),
+            )
+        )
+
+    def modify_blob_base_fee_update_fraction(
+        self, blob_base_fee_update_fraction: Uint
+    ) -> None:
+        """Append a `CodemodArgs` that sets `BLOB_BASE_FEE_UPDATE_FRACTION`."""
+        self.modifiers.append(
+            SetConstant(
+                "vm.gas.BLOB_BASE_FEE_UPDATE_FRACTION",
+                repr(blob_base_fee_update_fraction),
+            )
+        )
+
+    def modify_max_blob_gas_per_block(
+        self, max_blob_gas_per_block: U64
+    ) -> None:
+        """Append a `CodemodArgs` that sets `MAX_BLOB_GAS_PER_BLOCK`."""
+        self.modifiers.append(
+            SetConstant(
+                "fork.MAX_BLOB_GAS_PER_BLOCK",
+                repr(max_blob_gas_per_block),
+            )
+        )
+
+    def modify_blob_schedule_target(self, blob_schedule_target: U64) -> None:
+        """Append a `CodemodArgs` that sets `BLOB_SCHEDULE_TARGET`."""
+        self.modifiers.append(
+            SetConstant(
+                "vm.gas.BLOB_SCHEDULE_TARGET",
+                repr(blob_schedule_target),
+            )
+        )

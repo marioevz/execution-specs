@@ -47,7 +47,7 @@ class Alloc:
                     data[address][key] = "0x" + hex(int(value))
 
         state = t8n.json_to_state(data)
-        if t8n.fork.fork_module == "dao_fork":
+        if t8n.fork.hardfork.short_name == "dao_fork":
             t8n.fork.apply_dao(state)
 
         self.state = state

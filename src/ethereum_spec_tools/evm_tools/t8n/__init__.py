@@ -19,7 +19,7 @@ from ..loaders.fixture_loader import Load
 from ..loaders.fork_loader import ForkLoad
 from ..utils import (
     FatalError,
-    get_module_name,
+    find_fork,
     get_stream_logger,
     parse_hex_or_int,
 )
@@ -92,7 +92,7 @@ class T8N(Load):
         self.out_file = out_file
         self.in_file = in_file
         self.options = options
-        self.forks = Hardfork.discover()
+        forks = Hardfork.discover()
 
         if "stdin" in (
             options.input_env,
@@ -103,9 +103,7 @@ class T8N(Load):
         else:
             stdin = None
 
-        fork_module, self.fork_block = get_module_name(
-            self.forks, self.options, stdin
-        )
+        fork_module, self.fork_block = find_fork(forks, self.options, stdin)
         self.fork = ForkLoad(fork_module)
 
         tracers = GroupTracer()

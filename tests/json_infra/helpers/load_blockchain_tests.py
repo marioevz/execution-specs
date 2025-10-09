@@ -1,6 +1,5 @@
 """Helpers to load and run blockchain tests from JSON files."""
 
-import importlib
 import json
 import os.path
 from glob import glob
@@ -118,9 +117,7 @@ def add_block_to_chain(
     if not mock_pow:
         load.fork.state_transition(chain, block)
     else:
-        fork_module = importlib.import_module(
-            f"ethereum.forks.{load.fork.fork_module}.fork"
-        )
+        fork_module = load.fork.hardfork.module("fork")
         with patch.object(
             fork_module,
             "validate_proof_of_work",

@@ -2,8 +2,7 @@
 Loader for code from the relevant fork.
 """
 
-import importlib
-from typing import Any
+from typing import Any, Final
 
 from ethereum_spec_tools.forks import Hardfork
 
@@ -13,31 +12,21 @@ class ForkLoad:
     Load the functions and classes from the relevant fork.
     """
 
-    _fork_module: str
+    hardfork: Final[Hardfork]
     _forks: list[Hardfork]
 
-    def __init__(self, fork_module: str):
-        self._fork_module = fork_module
+    def __init__(self, hardfork: Hardfork):
+        self.hardfork = hardfork
         self._forks = Hardfork.discover()
-
-    @property
-    def fork_module(self) -> str:
-        """Module that contains the fork code."""
-        return self._fork_module
 
     def _module(self, name: str) -> Any:
         """Imports a module from the fork."""
-        return importlib.import_module(
-            f"ethereum.forks.{self._fork_module}.{name}"
-        )
+        return self.hardfork.module(name)
 
     @property
     def proof_of_stake(self) -> bool:
         """Whether the fork is proof of stake."""
-        for fork in self._forks:
-            if fork.name == "ethereum.forks." + self._fork_module:
-                return fork.consensus.is_pos()
-        raise Exception(f"fork {self._fork_module} not discovered")
+        return self.hardfork.consensus.is_pos()
 
     def is_after_fork(self, target_fork_name: str) -> bool:
         """
@@ -45,14 +34,16 @@ class ForkLoad:
 
         Accepts short fork names (e.g. "cancun") instead of full module paths.
         """
-        return_value = False
+        target_fork: Hardfork | None = None
         for fork in self._forks:
-            short_name = fork.short_name
-            if short_name == target_fork_name:
-                return_value = True
-            if short_name == self._fork_module:
+            if fork.short_name == target_fork_name:
+                target_fork = fork
                 break
-        return return_value
+
+        if target_fork is None:
+            raise Exception(f"fork `{target_fork_name}` not found")
+
+        return self.hardfork.mod.FORK_CRITERIA >= target_fork.mod.FORK_CRITERIA
 
     @property
     def BEACON_ROOTS_ADDRESS(self) -> Any:

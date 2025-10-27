@@ -52,7 +52,7 @@ PERCENTAGE_LINE = (
     "| TOTAL_CHECKLIST_ITEMS | COVERED_CHECKLIST_ITEMS | PERCENTAGE |"
 )
 TEMPLATE_PATH = (
-    Path(__file__).parents[3]
+    Path(__file__).parents[8]
     / "docs"
     / "writing_tests"
     / "checklist_templates"

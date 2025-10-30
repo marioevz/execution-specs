@@ -9,9 +9,10 @@ import importlib.abc
 import importlib.util
 import pkgutil
 import random
+import sys
 from contextlib import AbstractContextManager
 from enum import Enum, auto
-from importlib.machinery import ModuleSpec
+from importlib.machinery import ModuleSpec, PathFinder
 from pathlib import Path
 from pkgutil import ModuleInfo
 from tempfile import TemporaryDirectory
@@ -98,6 +99,14 @@ class Hardfork:
         forks: List[H] = []
 
         for pkg in modules:
+            try:
+                mod = sys.modules[pkg.name]
+                if hasattr(mod, "FORK_CRITERIA"):
+                    forks.append(cls(mod))
+                continue
+            except KeyError:
+                pass
+
             # Use find_spec() to find the module specification.
             if isinstance(pkg.module_finder, importlib.abc.MetaPathFinder):
                 found = pkg.module_finder.find_spec(pkg.name, None)
@@ -115,6 +124,8 @@ class Hardfork:
 
             # Load the module from the spec.
             mod = importlib.util.module_from_spec(found)
+
+            sys.modules[pkg.name] = mod
 
             # Execute the module in its namespace.
             if found.loader:
@@ -371,25 +382,63 @@ class Hardfork:
         Import if necessary, and return the given module belonging to this hard
         fork.
         """
-        return importlib.import_module(self.mod.__name__ + "." + name)
+        # Handle the "already imported" case early.
+        full_name = self.mod.__name__ + "." + name
+        try:
+            return sys.modules[full_name]
+        except KeyError:
+            pass
+
+        # Import each package (including parents), returning the last one.
+        fragments = name.split(".")
+        mod = self.mod
+
+        for fragment in fragments:
+            name = mod.__name__ + "." + fragment
+            try:
+                mod = sys.modules[name]
+                continue
+            except KeyError:
+                pass
+
+            if mod.__spec__ is None:
+                raise ImportError(f"{mod.__name__} is not a package")
+            if mod.__spec__.submodule_search_locations is None:
+                raise ImportError(f"{mod.__name__} is not a package")
+
+            spec = PathFinder.find_spec(
+                name,
+                path=mod.__spec__.submodule_search_locations,
+                target=mod,
+            )
+            if spec is None or spec.loader is None:
+                raise ModuleNotFoundError(name)
+
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[name] = mod
+            if spec.loader and hasattr(spec.loader, "exec_module"):
+                spec.loader.exec_module(mod)
+
+        assert mod.__name__ == full_name
+        return mod
 
     def iter_modules(self) -> Iterator[ModuleInfo]:
         """
         Iterate through the (sub-)modules describing this hardfork.
         """
-        if self.path is None:
+        if self.mod.__path__ is None:
             raise ValueError(f"cannot walk {self.name}, path is None")
 
-        return pkgutil.iter_modules(self.path, self.name + ".")
+        return pkgutil.iter_modules(self.mod.__path__, self.name + ".")
 
     def walk_packages(self) -> Iterator[ModuleInfo]:
         """
         Iterate recursively through the (sub-)modules describing this hardfork.
         """
-        if self.path is None:
+        if self.mod.__path__ is None:
             raise ValueError(f"cannot walk {self.name}, path is None")
 
-        return pkgutil.walk_packages([self.path], self.name + ".")
+        return pkgutil.walk_packages(self.mod.__path__, self.name + ".")
 
 
 class TemporaryHardfork(Hardfork, AbstractContextManager):

@@ -7,10 +7,11 @@ import tempfile
 from io import StringIO
 from pathlib import Path
 from typing import Any, ClassVar, Dict, Optional
+from typing_extensions import override
 
 import ethereum
 from ethereum_spec_tools.evm_tools import create_parser
-from ethereum_spec_tools.evm_tools.t8n import T8N
+from ethereum_spec_tools.evm_tools.t8n import T8N, ForkCache
 from ethereum_spec_tools.evm_tools.utils import get_supported_forks
 
 from execution_testing.client_clis.cli_types import TransitionToolOutput
@@ -44,6 +45,11 @@ class ExecutionSpecsTransitionTool(TransitionTool):
         self.exception_mapper = ExecutionSpecsExceptionMapper()
         self.trace = trace
         self._info_metadata: Optional[Dict[str, Any]] = {}
+        self.fork_cache = ForkCache()
+
+    @override
+    def shutdown(self) -> None:
+        self.fork_cache.__exit__()
 
     def version(self) -> str:
         """Version of the t8n tool."""
@@ -103,7 +109,7 @@ class ExecutionSpecsTransitionTool(TransitionTool):
 
         in_stream = StringIO(json.dumps(request_data_json["input"]))
 
-        t8n = T8N(t8n_options, out_stream, in_stream)
+        t8n = T8N(t8n_options, out_stream, in_stream, self.fork_cache)
         t8n.run()
 
         output_dict = json.loads(out_stream.getvalue())

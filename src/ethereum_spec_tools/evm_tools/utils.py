@@ -84,7 +84,7 @@ class FatalError(Exception):
 
 def find_fork(
     forks: Sequence[Hardfork], options: Any, stdin: Any
-) -> Tuple[Hardfork, int]:
+) -> Tuple[Hardfork, int | None]:
     """
     Get the module name and the fork block for the given state fork.
     """
@@ -97,7 +97,7 @@ def find_fork(
     except KeyError:
         pass
 
-    current_fork_block = 0
+    current_fork_block: None | int = None
     current_fork_module = re.sub(
         r"(?<!^)(?=[A-Z])",
         "_",

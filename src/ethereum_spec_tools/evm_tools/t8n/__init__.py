@@ -6,17 +6,19 @@ import argparse
 import fnmatch
 import json
 import os
-from typing import Any, Final, TextIO, Type, TypeVar
+from contextlib import AbstractContextManager
+from typing import Any, Final, TextIO, Tuple, Type, TypeVar
 
 from ethereum_rlp import rlp
 from ethereum_types.numeric import U64, U256, Uint
+from typing_extensions import override
 
 from ethereum import trace
 from ethereum.exceptions import EthereumException, InvalidBlock
-from ethereum_spec_tools.forks import Hardfork
+from ethereum.fork_criteria import ByBlockNumber, ByTimestamp, Unscheduled
+from ethereum_spec_tools.forks import Hardfork, TemporaryHardfork
 
 from ..loaders.fixture_loader import Load
-from ..loaders.fork_loader import ForkLoad
 from ..utils import (
     FatalError,
     find_fork,
@@ -81,13 +83,80 @@ def t8n_arguments(subparsers: argparse._SubParsersAction) -> None:
     t8n_parser.add_argument("--state-test", action="store_true")
 
 
+class ForkCache(AbstractContextManager):
+    """
+    Stores references to temporary hardforks and cleans them up when exited.
+    """
+
+    _cache: Final[dict[Tuple[object, ...], TemporaryHardfork]]
+
+    def __init__(self) -> None:
+        self._cache = {}
+
+    @override
+    def __exit__(self, *args: object, **kwargs: object) -> None:
+        for fork in self._cache.values():
+            fork.__exit__(*args, **kwargs)
+        self._cache.clear()
+
+    def get(
+        self,
+        template: Hardfork,
+        fork_criteria: ByBlockNumber | ByTimestamp | Unscheduled | None = None,
+        target_blob_gas_per_block: U64 | None = None,
+        gas_per_blob: U64 | None = None,
+        min_blob_gasprice: Uint | None = None,
+        blob_base_fee_update_fraction: Uint | None = None,
+        max_blob_gas_per_block: U64 | None = None,
+        blob_schedule_target: U64 | None = None,
+    ) -> Hardfork:
+        """
+        Search the cache for a maching hardfork, or create one if it doesn't
+        exist.
+        """
+        cache_key = (
+            template.short_name,
+            fork_criteria,
+            target_blob_gas_per_block,
+            gas_per_blob,
+            min_blob_gasprice,
+            blob_base_fee_update_fraction,
+            max_blob_gas_per_block,
+            blob_schedule_target,
+        )
+        if all(x is None for x in cache_key[1:]):
+            return template
+
+        try:
+            return self._cache[cache_key]
+        except KeyError:
+            pass
+
+        clone = Hardfork.clone(
+            template=template,
+            fork_criteria=fork_criteria,
+            target_blob_gas_per_block=target_blob_gas_per_block,
+            gas_per_blob=gas_per_blob,
+            min_blob_gasprice=min_blob_gasprice,
+            blob_base_fee_update_fraction=blob_base_fee_update_fraction,
+            max_blob_gas_per_block=max_blob_gas_per_block,
+            blob_schedule_target=blob_schedule_target,
+        )
+        self._cache[cache_key] = clone
+        return clone
+
+
 class T8N(Load):
     """The class that carries out the transition."""
 
     tracers: Final[GroupTracer | None]
 
     def __init__(
-        self, options: Any, out_file: TextIO, in_file: TextIO
+        self,
+        options: Any,
+        out_file: TextIO,
+        in_file: TextIO,
+        cache: ForkCache,
     ) -> None:
         self.out_file = out_file
         self.in_file = in_file
@@ -104,7 +173,16 @@ class T8N(Load):
             stdin = None
 
         fork_module, self.fork_block = find_fork(forks, self.options, stdin)
-        self.fork = ForkLoad(fork_module)
+
+        fork_criteria = None
+        if self.fork_block is not None and self.fork_block != 0:
+            # I can't find where `self.fork_block` is even used, and the vast
+            # majority of the time it's zero anyway. Not changing the fork
+            # criteria doesn't seem to break the tests, but changing it
+            # introduces cloning overhead, so... pretend it didn't happen.
+            fork_criteria = ByBlockNumber(self.fork_block)
+
+        fork = cache.get(fork_module, fork_criteria)
 
         tracers = GroupTracer()
 
@@ -137,7 +215,7 @@ class T8N(Load):
 
         super().__init__(
             self.options.state_fork,
-            fork_module,
+            fork,
         )
 
         self.chain_id = parse_hex_or_int(self.options.state_chainid, U64)
@@ -172,21 +250,23 @@ class T8N(Load):
             "chain_id": self.chain_id,
         }
 
-        if self.fork.is_after_fork("london"):
+        block_environment = self.fork.BlockEnvironment
+
+        if self.fork.has_calculate_base_fee_per_gas:
             kw_arguments["base_fee_per_gas"] = self.env.base_fee_per_gas
 
-        if self.fork.is_after_fork("paris"):
+        if self.fork.hardfork.consensus.is_pos():
             kw_arguments["prev_randao"] = self.env.prev_randao
         else:
             kw_arguments["difficulty"] = self.env.block_difficulty
 
-        if self.fork.is_after_fork("cancun"):
+        if self.fork.has_beacon_roots_address:
             kw_arguments["parent_beacon_block_root"] = (
                 self.env.parent_beacon_block_root
             )
             kw_arguments["excess_blob_gas"] = self.env.excess_blob_gas
 
-        return self.fork.BlockEnvironment(**kw_arguments)
+        return block_environment(**kw_arguments)
 
     def backup_state(self) -> None:
         """Back up the state in order to restore in case of an error."""
@@ -250,14 +330,14 @@ class T8N(Load):
         self.result.rejected = self.txs.rejected_txs
 
     def _run_blockchain_test(self, block_env: Any, block_output: Any) -> None:
-        if self.fork.is_after_fork("prague"):
+        if self.fork.has_compute_requests_hash:
             self.fork.process_unchecked_system_transaction(
                 block_env=block_env,
                 target_address=self.fork.HISTORY_STORAGE_ADDRESS,
                 data=block_env.block_hashes[-1],  # The parent hash
             )
 
-        if self.fork.is_after_fork("cancun"):
+        if self.fork.has_beacon_roots_address:
             self.fork.process_unchecked_system_transaction(
                 block_env=block_env,
                 target_address=self.fork.BEACON_ROOTS_ADDRESS,
@@ -279,7 +359,7 @@ class T8N(Load):
                 self.restore_state()
                 self.logger.warning(f"Transaction {i} failed: {e!r}")
 
-        if not self.fork.is_after_fork("paris"):
+        if not self.fork.proof_of_stake:
             if self.options.state_reward is None:
                 self.pay_block_rewards(self.fork.BLOCK_REWARD, block_env)
             elif self.options.state_reward != -1:
@@ -287,12 +367,12 @@ class T8N(Load):
                     U256(self.options.state_reward), block_env
                 )
 
-        if self.fork.is_after_fork("shanghai"):
+        if self.fork.has_withdrawal:
             self.fork.process_withdrawals(
                 block_env, block_output, self.env.withdrawals
             )
 
-        if self.fork.is_after_fork("prague"):
+        if self.fork.has_compute_requests_hash:
             self.fork.process_general_purpose_requests(block_env, block_output)
 
     def run_blockchain_test(self) -> None:

@@ -5,6 +5,7 @@ into a new fork.
 
 import json
 import sys
+import warnings
 from abc import ABC, abstractmethod
 from contextlib import ExitStack, chdir
 from dataclasses import dataclass, field
@@ -68,20 +69,32 @@ class RenameFork(CodemodArgs):
         forks = Hardfork.discover()
         before_fork = None
         for fork in forks:
-            if fork.criteria > fork_builder.fork_criteria:
+            if fork.criteria >= fork_builder.fork_criteria:
                 break
             before_fork = fork
 
         if before_fork is None:
-            assert fork_builder.before_template_fork is None
+            if fork_builder.before_template_fork is not None:
+                warnings.warn(
+                    "creating genesis fork from a non-genesis fork "
+                    + f"(`{fork_builder.template_fork.short_name}`)",
+                    stacklevel=2,
+                )
             return commands
 
-        assert fork_builder.before_template_fork is not None
+        if fork_builder.before_template_fork is None:
+            warnings.warn(
+                "creating non-genesis fork from a genesis fork "
+                + f"(`{fork_builder.template_fork.short_name}`)",
+                stacklevel=2,
+            )
+            return commands
 
         commands.append(
             [
                 "codemod",
                 "rename.RenameCommand",
+                "--no-format",
                 "--old_name",
                 fork_builder.before_template_fork.name,
                 "--new_name",

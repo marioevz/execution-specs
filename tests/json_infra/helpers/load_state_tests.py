@@ -13,7 +13,7 @@ from ethereum.exceptions import StateWithEmptyAccount
 from ethereum.utils.hexadecimal import hex_to_bytes
 from ethereum_spec_tools.evm_tools import create_parser
 from ethereum_spec_tools.evm_tools.statetest import read_test_cases
-from ethereum_spec_tools.evm_tools.t8n import T8N
+from ethereum_spec_tools.evm_tools.t8n import T8N, ForkCache
 
 from .. import FORKS
 from .exceptional_test_patterns import exceptional_state_test_patterns
@@ -138,11 +138,12 @@ def run_state_test(test_case: Dict[str, str]) -> None:
     ]
     t8n_options = parser.parse_args(t8n_args)
 
-    try:
-        t8n = T8N(t8n_options, sys.stdout, in_stream)
-    except StateWithEmptyAccount as e:
-        pytest.xfail(str(e))
+    with ForkCache() as fork_cache:
+        try:
+            t8n = T8N(t8n_options, sys.stdout, in_stream, fork_cache)
+        except StateWithEmptyAccount as e:
+            pytest.xfail(str(e))
 
-    t8n.run_state_test()
+        t8n.run_state_test()
 
     assert hex_to_bytes(post_hash) == t8n.result.state_root

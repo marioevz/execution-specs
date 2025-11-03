@@ -501,3 +501,12 @@ class ForkBuilder:
                 repr(blob_schedule_target),
             )
         )
+
+    def modify_blob_schedule_max(self, blob_schedule_max: U64) -> None:
+        """Append a `CodemodArgs` that sets `BLOB_SCHEDULE_MAX`."""
+        self.modifiers.append(
+            SetConstant(
+                "vm.gas.BLOB_SCHEDULE_MAX",
+                repr(blob_schedule_max),
+            )
+        )

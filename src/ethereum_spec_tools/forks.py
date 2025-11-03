@@ -202,6 +202,7 @@ class Hardfork:
         blob_base_fee_update_fraction: Uint | None = None,
         max_blob_gas_per_block: U64 | None = None,
         blob_schedule_target: U64 | None = None,
+        blob_schedule_max: U64 | None = None,
     ) -> "TemporaryHardfork":
         """
         Create a temporary clone of an existing fork, optionally tweaking its
@@ -252,6 +253,9 @@ class Hardfork:
 
             if blob_schedule_target is not None:
                 builder.modify_blob_schedule_target(blob_schedule_target)
+
+            if blob_schedule_max is not None:
+                builder.modify_blob_schedule_max(blob_schedule_max)
 
             builder.build()
 

@@ -37,6 +37,8 @@ def test_end_to_end() -> None:
                 "99",
                 "--blob-schedule-target",
                 "88",
+                "--blob-schedule-max",
+                "77",
                 "--output",
                 str(output_dir),
             ]
@@ -58,6 +60,7 @@ def test_end_to_end() -> None:
                 "MIN_BLOB_GASPRICE = Uint(2)",
                 "BLOB_BASE_FEE_UPDATE_FRACTION = Uint(750)",
                 "BLOB_SCHEDULE_TARGET = U64(88)",
+                "BLOB_SCHEDULE_MAX = U64(77)",
             ]
 
             for needle in expected:

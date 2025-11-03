@@ -134,6 +134,14 @@ def _make_parser() -> ArgumentParser:
         help="Set `BLOB_SCHEDULE_TARGET` in the generated fork",
     )
 
+    blob_parameters.add_argument(
+        "--blob-schedule-max",
+        type=lambda x: U64(int(x)),
+        dest="blob_schedule_max",
+        default=None,
+        help="Set `BLOB_SCHEDULE_MAX` in the generated fork",
+    )
+
     return parser
 
 
@@ -182,6 +190,9 @@ def main(args: Sequence[str] | None = None) -> None:
 
     if options.blob_schedule_target is not None:
         builder.modify_blob_schedule_target(options.blob_schedule_target)
+
+    if options.blob_schedule_max is not None:
+        builder.modify_blob_schedule_max(options.blob_schedule_max)
 
     builder.build()
 

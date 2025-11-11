@@ -7,6 +7,7 @@ import fnmatch
 import json
 import os
 from contextlib import AbstractContextManager
+from pathlib import Path
 from typing import Any, Final, TextIO, Tuple, Type, TypeVar
 
 from ethereum_rlp import rlp
@@ -48,6 +49,12 @@ def t8n_arguments(subparsers: argparse._SubParsersAction) -> None:
     )
     t8n_parser.add_argument(
         "--input.txs", dest="input_txs", type=str, default="txs.json"
+    )
+    t8n_parser.add_argument(
+        "--input.blobParams",
+        dest="blob_parameters",
+        type=str,
+        default=None,
     )
     t8n_parser.add_argument(
         "--output.alloc", dest="output_alloc", type=str, default="alloc.json"
@@ -109,6 +116,7 @@ class ForkCache(AbstractContextManager):
         blob_base_fee_update_fraction: Uint | None = None,
         max_blob_gas_per_block: U64 | None = None,
         blob_schedule_target: U64 | None = None,
+        blob_schedule_max: U64 | None = None,
     ) -> Hardfork:
         """
         Search the cache for a maching hardfork, or create one if it doesn't
@@ -123,6 +131,7 @@ class ForkCache(AbstractContextManager):
             blob_base_fee_update_fraction,
             max_blob_gas_per_block,
             blob_schedule_target,
+            blob_schedule_max,
         )
         if all(x is None for x in cache_key[1:]):
             return template
@@ -141,6 +150,7 @@ class ForkCache(AbstractContextManager):
             blob_base_fee_update_fraction=blob_base_fee_update_fraction,
             max_blob_gas_per_block=max_blob_gas_per_block,
             blob_schedule_target=blob_schedule_target,
+            blob_schedule_max=blob_schedule_max,
         )
         self._cache[cache_key] = clone
         return clone
@@ -167,6 +177,7 @@ class T8N(Load):
             options.input_env,
             options.input_alloc,
             options.input_txs,
+            options.blob_parameters,
         ):
             stdin = json.load(in_file)
         else:
@@ -182,7 +193,39 @@ class T8N(Load):
             # introduces cloning overhead, so... pretend it didn't happen.
             fork_criteria = ByBlockNumber(self.fork_block)
 
-        fork = cache.get(fork_module, fork_criteria)
+        target_blobs_per_block = None
+        max_blobs_per_block = None
+        base_fee_update_fraction = None
+
+        blob_parameters = None
+        if options.blob_parameters == "stdin":
+            assert stdin is not None
+            blob_parameters = stdin["blobParams"]
+        elif options.blob_parameters is not None:
+            with open(options.blob_parameters, "r") as f:
+                blob_parameters = json.load(f)
+
+        if blob_parameters is not None:
+            target_blobs_per_block = parse_hex_or_int(
+                blob_parameters["target"],
+                U64,
+            )
+            max_blobs_per_block = parse_hex_or_int(
+                blob_parameters["max"],
+                U64,
+            )
+            base_fee_update_fraction = parse_hex_or_int(
+                blob_parameters["baseFeeUpdateFraction"],
+                Uint,
+            )
+
+        fork = cache.get(
+            fork_module,
+            fork_criteria,
+            blob_schedule_target=target_blobs_per_block,
+            blob_schedule_max=max_blobs_per_block,
+            blob_base_fee_update_fraction=base_fee_update_fraction,
+        )
 
         tracers = GroupTracer()
 

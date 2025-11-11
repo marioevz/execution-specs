@@ -34,6 +34,9 @@ from execution_testing.forks import Fork
 class ExecutionSpecsTransitionTool(TransitionTool):
     """Implementation of the EELS T8N for execution-spec-tests."""
 
+    supports_opcode_count: ClassVar[bool] = True
+    supports_blob_params: ClassVar[bool] = True
+
     def __init__(
         self,
         *,
@@ -92,6 +95,9 @@ class ExecutionSpecsTransitionTool(TransitionTool):
 
         if transition_tool_data.state_test:
             t8n_args.append("--state-test")
+
+        if transition_tool_data.blob_params:
+            t8n_args.append("--input.blobParams=stdin")
 
         if self.trace:
             t8n_args.extend(

@@ -4,7 +4,9 @@ from .base import (
     BaseFixture,
     FixtureFillingPhase,
     FixtureFormat,
+    get_all_fixture_format_names,
     LabeledFixtureFormat,
+    strip_fixture_format_from_nodeid,
 )
 from .blockchain import (
     BlockchainEngineFixture,
@@ -37,12 +39,14 @@ __all__ = [
     "FixtureConsumer",
     "FixtureFillingPhase",
     "FixtureFormat",
+    "get_all_fixture_format_names",
     "LabeledFixtureFormat",
     "PreAllocGroup",
     "PreAllocGroupBuilder",
     "PreAllocGroupBuilders",
     "PreAllocGroups",
     "StateFixture",
+    "strip_fixture_format_from_nodeid",
     "TestInfo",
     "TransactionFixture",
 ]

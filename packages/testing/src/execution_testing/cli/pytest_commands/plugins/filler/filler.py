@@ -1300,7 +1300,7 @@ def filler_path(request: pytest.FixtureRequest) -> Path:
 
 
 def _strip_xdist_group_suffix(s: str) -> str:
-    """Strip @t8n-cache-* suffix added for cache locality, preserving other groups."""
+    """Strip @t8n-cache-* suffix, preserving other xdist_group markers."""
     if "@" in s:
         base, suffix = s.rsplit("@", 1)
         if suffix.startswith("t8n-cache-"):
@@ -1649,7 +1649,7 @@ def pytest_collection_modifyitems(
 
     # Group related fixture formats for cache locality.
     if config.getoption("numprocesses", None):
-        # With xdist: add xdist_group markers for --dist=loadgroup distribution.
+        # With xdist: add xdist_group markers for --dist=loadgroup.
         # Skip if test already has an xdist_group marker (e.g., bigmem).
         for item in items:
             if not item.get_closest_marker("xdist_group"):
@@ -1659,9 +1659,7 @@ def pytest_collection_modifyitems(
 
     # Sort items so related formats run consecutively for cache hits.
     # This ensures deterministic execution order within xdist workers.
-    items.sort(
-        key=lambda item: strip_fixture_format_from_nodeid(item.nodeid)
-    )
+    items.sort(key=lambda item: strip_fixture_format_from_nodeid(item.nodeid))
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:

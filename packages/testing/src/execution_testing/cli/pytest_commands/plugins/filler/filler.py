@@ -8,12 +8,14 @@ and writes the generated fixtures to file.
 
 import configparser
 import datetime
+import hashlib
 import json
 import os
 import warnings
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Self, Set, Type
+from typing import Any, Dict, Generator, List, Self, Set, Tuple, Type
 
 import pytest
 import xdist
@@ -31,7 +33,7 @@ from execution_testing.base_types import (
 from execution_testing.cli.gen_index import (
     generate_fixtures_index,
 )
-from execution_testing.client_clis import TransitionTool
+from execution_testing.client_clis import TransitionTool, TransitionToolOutput
 from execution_testing.client_clis.clis.geth import FixtureConsumerTool
 from execution_testing.fixtures import (
     BaseFixture,
@@ -44,6 +46,7 @@ from execution_testing.fixtures import (
     PreAllocGroupBuilders,
     PreAllocGroups,
     TestInfo,
+    strip_fixture_format_from_nodeid,
 )
 from execution_testing.forks import (
     Fork,
@@ -68,6 +71,51 @@ from ..spec_version_checker.spec_version_checker import (
     get_ref_spec_from_module,
 )
 from .fixture_output import FixtureOutput
+
+
+class T8nOutputCache:
+    """
+    Bounded LRU cache for t8n outputs.
+
+    With xdist_group ensuring related formats run consecutively on the same
+    worker, we only need to hold entries for 1-2 test cases at a time.
+    """
+
+    def __init__(self, maxsize: int = 3):
+        """Initialize the cache with a maximum size."""
+        self._cache: OrderedDict[
+            Tuple[str, str, int], TransitionToolOutput
+        ] = OrderedDict()
+        self._maxsize = maxsize
+        self.hits = 0
+        self.misses = 0
+
+    def get(self, key: Tuple[str, str, int]) -> TransitionToolOutput | None:
+        """Get a value from the cache, marking it as recently used."""
+        if key in self._cache:
+            self._cache.move_to_end(key)
+            self.hits += 1
+            return self._cache[key]
+        self.misses += 1
+        return None
+
+    def set(
+        self, key: Tuple[str, str, int], value: TransitionToolOutput
+    ) -> None:
+        """Set a value in the cache, evicting oldest if at capacity."""
+        if key in self._cache:
+            self._cache.move_to_end(key)
+            self._cache[key] = value
+        else:
+            if len(self._cache) >= self._maxsize:
+                self._cache.popitem(last=False)
+            self._cache[key] = value
+
+    def stats(self) -> str:
+        """Return cache statistics."""
+        total = self.hits + self.misses
+        rate = (self.hits / total * 100) if total > 0 else 0
+        return f"hits={self.hits}, misses={self.misses}, rate={rate:.1f}%"
 
 
 @dataclass(kw_only=True)
@@ -235,6 +283,7 @@ class FillingSession:
     format_selector: FormatSelector
     pre_alloc_groups: PreAllocGroups | None = None
     pre_alloc_group_builders: PreAllocGroupBuilders | None = None
+    t8n_output_cache: T8nOutputCache = field(default_factory=T8nOutputCache)
 
     @classmethod
     def from_config(cls, config: pytest.Config) -> "Self":
@@ -1250,11 +1299,21 @@ def filler_path(request: pytest.FixtureRequest) -> Path:
     return request.config.getoption("filler_path")
 
 
+def _strip_xdist_group_suffix(s: str) -> str:
+    """Strip @t8n-cache-* suffix added for cache locality, preserving other groups."""
+    if "@" in s:
+        base, suffix = s.rsplit("@", 1)
+        if suffix.startswith("t8n-cache-"):
+            return base
+    return s
+
+
 def node_to_test_info(node: pytest.Item) -> TestInfo:
     """Return test info of the current node item."""
+    # Strip xdist group suffix (@groupname) that may be added during execution.
     return TestInfo(
-        name=node.name,
-        id=node.nodeid,
+        name=_strip_xdist_group_suffix(node.name),
+        id=_strip_xdist_group_suffix(node.nodeid),
         original_name=node.originalname,  # type: ignore
         module_path=Path(node.path),
     )
@@ -1516,6 +1575,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
             )
 
 
+@pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(
     config: pytest.Config, items: List[pytest.Item | pytest.Function]
 ) -> None:
@@ -1529,8 +1589,6 @@ def pytest_collection_modifyitems(
     These can't be handled in this plugins pytest_generate_tests() as the fork
     parametrization occurs in the forks plugin.
     """
-    del config
-
     items_for_removal = []
     for i, item in enumerate(items):
         item.name = item.name.strip().replace(" ", "-")
@@ -1588,6 +1646,21 @@ def pytest_collection_modifyitems(
 
     for i in reversed(items_for_removal):
         items.pop(i)
+
+    # Group related fixture formats for cache locality.
+    if config.getoption("numprocesses", None):
+        # With xdist: add xdist_group markers for --dist=loadgroup distribution.
+        # Skip if test already has an xdist_group marker (e.g., bigmem).
+        for item in items:
+            if not item.get_closest_marker("xdist_group"):
+                base_nodeid = strip_fixture_format_from_nodeid(item.nodeid)
+                h = hashlib.md5(base_nodeid.encode()).hexdigest()[:8]
+                item.add_marker(pytest.mark.xdist_group(name=f"t8n-cache-{h}"))
+    else:
+        # Without xdist: sort items so related formats run consecutively.
+        items.sort(
+            key=lambda item: strip_fixture_format_from_nodeid(item.nodeid)
+        )
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:

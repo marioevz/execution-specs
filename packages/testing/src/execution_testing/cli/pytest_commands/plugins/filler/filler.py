@@ -8,7 +8,6 @@ and writes the generated fixtures to file.
 
 import configparser
 import datetime
-import hashlib
 import json
 import os
 import warnings
@@ -46,7 +45,7 @@ from execution_testing.fixtures import (
     PreAllocGroupBuilders,
     PreAllocGroups,
     TestInfo,
-    strip_fixture_format_from_nodeid,
+    strip_fixture_format_from_node,
 )
 from execution_testing.forks import (
     Fork,
@@ -1418,6 +1417,7 @@ def base_test_parametrizer(cls: Type[BaseTest]) -> Any:
                 if "expected_benchmark_gas_used" not in kwargs:
                     kwargs["expected_benchmark_gas_used"] = gas_benchmark_value
                 kwargs["fork"] = fork
+                kwargs["fixture_format"] = fixture_format
                 kwargs |= {
                     p: request.getfixturevalue(p)
                     for p in cls_fixture_parameters
@@ -1653,13 +1653,14 @@ def pytest_collection_modifyitems(
         # Skip if test already has an xdist_group marker (e.g., bigmem).
         for item in items:
             if not item.get_closest_marker("xdist_group"):
-                base_nodeid = strip_fixture_format_from_nodeid(item.nodeid)
-                h = hashlib.md5(base_nodeid.encode()).hexdigest()[:8]
-                item.add_marker(pytest.mark.xdist_group(name=f"t8n-cache-{h}"))
+                base_nodeid = strip_fixture_format_from_node(item)
+                item.add_marker(
+                    pytest.mark.xdist_group(name=f"t8n-cache-{base_nodeid}")
+                )
 
     # Sort items so related formats run consecutively for cache hits.
     # This ensures deterministic execution order within xdist workers.
-    items.sort(key=lambda item: strip_fixture_format_from_nodeid(item.nodeid))
+    items.sort(key=lambda item: strip_fixture_format_from_node(item))
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:

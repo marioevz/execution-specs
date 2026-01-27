@@ -183,6 +183,10 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "fully_tagged: Marks a static test as fully tagged with all metadata.",
     )
+    config.addinivalue_line(
+        "markers",
+        "fixture_format_id: ID used to describe the fixture format.",
+    )
 
 
 @pytest.fixture(scope="function")

@@ -1656,11 +1656,12 @@ def pytest_collection_modifyitems(
                 base_nodeid = strip_fixture_format_from_nodeid(item.nodeid)
                 h = hashlib.md5(base_nodeid.encode()).hexdigest()[:8]
                 item.add_marker(pytest.mark.xdist_group(name=f"t8n-cache-{h}"))
-    else:
-        # Without xdist: sort items so related formats run consecutively.
-        items.sort(
-            key=lambda item: strip_fixture_format_from_nodeid(item.nodeid)
-        )
+
+    # Sort items so related formats run consecutively for cache hits.
+    # This ensures deterministic execution order within xdist workers.
+    items.sort(
+        key=lambda item: strip_fixture_format_from_nodeid(item.nodeid)
+    )
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:

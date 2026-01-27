@@ -430,9 +430,10 @@ class TestCollectionSortingBehavior:
     def _simulate_collection_with_xdist_current(
         self, items: list[MockItem]
     ) -> None:
-        """Simulate CURRENT behavior WITH xdist (NO sorting - BUG)."""
+        """Simulate CURRENT behavior WITH xdist (adds markers AND sorts)."""
         self._add_xdist_markers(items)
-        # BUG: Missing sort here!
+        # FIXED: Now sorts after adding markers.
+        self._sort_items_by_base_nodeid(items)
 
     def _simulate_collection_with_xdist_fixed(
         self, items: list[MockItem]
@@ -455,8 +456,8 @@ class TestCollectionSortingBehavior:
         assert "test_a" in items[0].nodeid
         assert "test_b" in items[1].nodeid
 
-    def test_items_not_sorted_with_xdist_current_behavior(self) -> None:
-        """Test current behavior: items NOT sorted with xdist (BUG)."""
+    def test_items_sorted_with_xdist_current_behavior(self) -> None:
+        """Test current behavior: items ARE sorted with xdist (FIXED)."""
         items = [
             MockItem("tests/test.py::test_b[fork_Osaka-blockchain_test]"),
             MockItem("tests/test.py::test_a[fork_Osaka-blockchain_test]"),
@@ -464,10 +465,9 @@ class TestCollectionSortingBehavior:
 
         self._simulate_collection_with_xdist_current(items)
 
-        # BUG: Items are NOT sorted - order unchanged from input.
-        # test_b is still first (wrong order - should be test_a first).
-        assert "test_b" in items[0].nodeid, (
-            "Current behavior: items not sorted with xdist. "
+        # FIXED: Items ARE sorted - test_a before test_b.
+        assert "test_a" in items[0].nodeid, (
+            "Items should be sorted with xdist. "
             f"Got: {[i.nodeid for i in items]}"
         )
 
@@ -508,35 +508,30 @@ class TestCollectionSortingBehavior:
         )
         assert group0.startswith("t8n-cache-")
 
-    def test_current_vs_expected_behavior_xdist(self) -> None:
-        """Test CURRENT xdist behavior differs from EXPECTED (catches bug)."""
+    def test_current_matches_expected_behavior_xdist(self) -> None:
+        """Test CURRENT xdist behavior matches EXPECTED (FIXED)."""
         nodeids = [
             "tests/test.py::test_b[fork_Osaka-blockchain_test]",
             "tests/test.py::test_a[fork_Osaka-blockchain_test]",
         ]
 
-        # Simulate current (buggy) behavior.
+        # Simulate current (fixed) behavior.
         current_items = [MockItem(n) for n in nodeids]
         self._simulate_collection_with_xdist_current(current_items)
         current_order = [i.nodeid for i in current_items]
 
-        # Simulate expected (fixed) behavior.
+        # Simulate expected behavior.
         expected_items = [MockItem(n) for n in nodeids]
         self._simulate_collection_with_xdist_fixed(expected_items)
         expected_order = [i.nodeid for i in expected_items]
 
-        # BUG: Current order differs from expected order.
-        # This assertion should FAIL after the fix is applied.
-        assert current_order != expected_order, (
-            "Bug is fixed! Update test to expect sorted order. "
+        # FIXED: Current order matches expected order.
+        assert current_order == expected_order, (
             f"Current: {current_order}, Expected: {expected_order}"
         )
 
-    @pytest.mark.xfail(
-        reason="BUG: Items not sorted with xdist. Remove xfail after fix."
-    )
     def test_xdist_sorting_required_for_cache_hits(self) -> None:
-        """Test xdist collection sorts items (FAILS until bug is fixed)."""
+        """Test xdist collection sorts items for deterministic cache hits."""
         nodeids = [
             "tests/test.py::test_b[fork_Osaka-blockchain_test]",
             "tests/test.py::test_a[fork_Osaka-blockchain_test]",
@@ -546,8 +541,7 @@ class TestCollectionSortingBehavior:
         items = [MockItem(n) for n in nodeids]
         self._simulate_collection_with_xdist_current(items)
 
-        # EXPECTED: Items should be sorted (test_a before test_b).
-        # BUG: Items are NOT sorted - this assertion fails.
+        # FIXED: Items are sorted (test_a before test_b).
         assert "test_a" in items[0].nodeid, (
             "Items should be sorted with xdist for deterministic cache hits. "
             f"Got: {[i.nodeid for i in items]}"

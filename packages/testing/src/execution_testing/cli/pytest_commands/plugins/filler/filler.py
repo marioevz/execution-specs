@@ -11,10 +11,9 @@ import datetime
 import json
 import os
 import warnings
-from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Self, Set, Tuple, Type
+from typing import Any, Dict, Generator, List, Self, Set, Type
 
 import pytest
 import xdist
@@ -32,7 +31,7 @@ from execution_testing.base_types import (
 from execution_testing.cli.gen_index import (
     generate_fixtures_index,
 )
-from execution_testing.client_clis import TransitionTool, TransitionToolOutput
+from execution_testing.client_clis import TransitionTool
 from execution_testing.client_clis.clis.geth import FixtureConsumerTool
 from execution_testing.fixtures import (
     BaseFixture,
@@ -70,51 +69,6 @@ from ..spec_version_checker.spec_version_checker import (
     get_ref_spec_from_module,
 )
 from .fixture_output import FixtureOutput
-
-
-class T8nOutputCache:
-    """
-    Bounded LRU cache for t8n outputs.
-
-    With xdist_group ensuring related formats run consecutively on the same
-    worker, we only need to hold entries for 1-2 test cases at a time.
-    """
-
-    def __init__(self, maxsize: int = 3):
-        """Initialize the cache with a maximum size."""
-        self._cache: OrderedDict[
-            Tuple[str, str, int], TransitionToolOutput
-        ] = OrderedDict()
-        self._maxsize = maxsize
-        self.hits = 0
-        self.misses = 0
-
-    def get(self, key: Tuple[str, str, int]) -> TransitionToolOutput | None:
-        """Get a value from the cache, marking it as recently used."""
-        if key in self._cache:
-            self._cache.move_to_end(key)
-            self.hits += 1
-            return self._cache[key]
-        self.misses += 1
-        return None
-
-    def set(
-        self, key: Tuple[str, str, int], value: TransitionToolOutput
-    ) -> None:
-        """Set a value in the cache, evicting oldest if at capacity."""
-        if key in self._cache:
-            self._cache.move_to_end(key)
-            self._cache[key] = value
-        else:
-            if len(self._cache) >= self._maxsize:
-                self._cache.popitem(last=False)
-            self._cache[key] = value
-
-    def stats(self) -> str:
-        """Return cache statistics."""
-        total = self.hits + self.misses
-        rate = (self.hits / total * 100) if total > 0 else 0
-        return f"hits={self.hits}, misses={self.misses}, rate={rate:.1f}%"
 
 
 @dataclass(kw_only=True)
@@ -282,7 +236,6 @@ class FillingSession:
     format_selector: FormatSelector
     pre_alloc_groups: PreAllocGroups | None = None
     pre_alloc_group_builders: PreAllocGroupBuilders | None = None
-    t8n_output_cache: T8nOutputCache = field(default_factory=T8nOutputCache)
 
     @classmethod
     def from_config(cls, config: pytest.Config) -> "Self":
@@ -410,6 +363,16 @@ class FillingSession:
         pre_alloc_folder = self.fixture_output.pre_alloc_groups_folder_path
         pre_alloc_folder.mkdir(parents=True, exist_ok=True)
         self.pre_alloc_group_builders.to_folder(pre_alloc_folder)
+
+
+@dataclass(kw_only=True)
+class TransitionToolCacheStats:
+    """Stats for caching of the transition tool requests."""
+
+    key_test_hits: int = 0
+    key_test_miss: int = 0
+    subkey_test_hits: int = 0
+    subkey_test_miss: int = 0
 
 
 def calculate_post_state_diff(
@@ -880,6 +843,20 @@ def pytest_terminal_summary(
     yield
     if config.fixture_output.is_stdout or hasattr(config, "workerinput"):  # type: ignore[attr-defined]
         return
+    t8n_cache_stats: TransitionToolCacheStats | None = getattr(
+        config, "transition_tool_cache_stats", None
+    )
+    if t8n_cache_stats is not None:
+        terminalreporter.write_sep(
+            "=",
+            f" Transition tool cache stats:"
+            f"- Key test hits: {t8n_cache_stats.key_test_hits}"
+            f"- Key test misses: {t8n_cache_stats.key_test_miss}"
+            f"- Subkey test hits: {t8n_cache_stats.subkey_test_hits}"
+            f"- Subkey test misses: {t8n_cache_stats.subkey_test_miss}",
+            bold=True,
+            green=True,
+        )
     stats = terminalreporter.stats
     if "passed" in stats and stats["passed"]:
         # Custom message for Phase 1 (pre-allocation group generation)
@@ -1041,7 +1018,7 @@ def verify_fixtures_bin(request: pytest.FixtureRequest) -> Path | None:
 
 
 @pytest.fixture(autouse=True, scope="session")
-def t8n(
+def session_t8n(
     request: pytest.FixtureRequest,
 ) -> Generator[TransitionTool, None, None]:
     """Return configured transition tool."""
@@ -1057,6 +1034,66 @@ def t8n(
         )
     yield t8n
     t8n.shutdown()
+
+
+def get_t8n_cache_key(request: pytest.FixtureRequest) -> str | None:
+    """Get the cache key to be used for the current test, if any."""
+    mark: pytest.Mark = request.node.get_closest_marker(
+        "transition_tool_cache_key"
+    )
+    if mark is not None and len(mark.args) == 1:
+        return f"{strip_fixture_format_from_node(request.node)}-{mark.args[0]}"
+    return None
+
+
+@pytest.fixture(autouse=True, scope="session")
+def transition_tool_cache_stats(
+    request: pytest.FixtureRequest,
+) -> Generator[TransitionToolCacheStats, None, None]:
+    """Get the transition tool cache stats."""
+    stats = TransitionToolCacheStats()
+    yield stats
+    request.config.transition_tool_cache_stats = stats  # type: ignore[attr-defined]
+
+
+@pytest.fixture(autouse=True, scope="function")
+def t8n(
+    request: pytest.FixtureRequest,
+    session_t8n: TransitionTool,
+    dump_dir_parameter_level: Path | None,
+    transition_tool_cache_stats: TransitionToolCacheStats,
+) -> Generator[TransitionTool, None, None]:
+    """Set the transition tool up for the current test."""
+    if transition_tool_cache_key := get_t8n_cache_key(request):
+        # This test is allowed to cache results
+        if session_t8n.set_cache(key=transition_tool_cache_key):
+            transition_tool_cache_stats.key_test_hits += 1
+        else:
+            transition_tool_cache_stats.key_test_miss += 1
+    else:
+        # Test cannot use output cache, remove it
+        session_t8n.remove_cache()
+    # Reset the traces
+    session_t8n.reset_traces()
+    session_t8n.call_counter = 0
+    session_t8n.debug_dump_dir = dump_dir_parameter_level
+    # Configure the transition tool to count opcodes only when required.
+    if (
+        request.node.get_closest_marker("benchmark")
+        or request.node.get_closest_marker("stateful")
+        or request.node.get_closest_marker("repricing")
+    ):
+        session_t8n.reset_opcode_count()
+    else:
+        session_t8n.remove_opcode_count()
+    yield session_t8n
+    if session_t8n.output_cache is not None:
+        transition_tool_cache_stats.subkey_test_hits += (
+            session_t8n.output_cache.hits
+        )
+        transition_tool_cache_stats.subkey_test_miss += (
+            session_t8n.output_cache.misses
+        )
 
 
 @pytest.fixture(scope="session")
@@ -1380,7 +1417,6 @@ def base_test_parametrizer(cls: Type[BaseTest]) -> Any:
         reference_spec: ReferenceSpec,
         pre: Alloc,
         output_dir: Path,
-        dump_dir_parameter_level: Path | None,
         fixture_collector: FixtureCollector,
         test_case_description: str,
         fixture_source_url: str,
@@ -1411,7 +1447,6 @@ def base_test_parametrizer(cls: Type[BaseTest]) -> Any:
 
         class BaseTestWrapper(cls):  # type: ignore
             def __init__(self, *args: Any, **kwargs: Any) -> None:
-                kwargs["t8n_dump_dir"] = dump_dir_parameter_level
                 if "pre" not in kwargs:
                     kwargs["pre"] = pre
                 if "expected_benchmark_gas_used" not in kwargs:

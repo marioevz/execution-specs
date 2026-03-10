@@ -334,6 +334,10 @@ class Alloc(SharedAlloc):
                 f"(label={label})"
             )
         else:
+            logger.info(
+                f"Contract {contract_address} not found, deploying "
+                f"(label={label})"
+            )
             # Assert the deployment contract is already on chain
             assert (
                 check_deterministic_factory_deployment(

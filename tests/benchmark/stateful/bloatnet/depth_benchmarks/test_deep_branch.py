@@ -306,7 +306,8 @@ def test_worst_depth_stateroot_recomp(
 
     # Deploy orchestrator to deterministic address
     attack_orchestrator_address = pre.deterministic_deploy_contract(
-        deploy_code=attack_orchestrator_bytecode
+        deploy_code=attack_orchestrator_bytecode,
+        label="attack_orchestrator",
     )
     print(f"  Orchestrator will be deployed at: {attack_orchestrator_address}")
 
@@ -332,6 +333,10 @@ def test_worst_depth_stateroot_recomp(
 
     # Deploy all contracts required.
     post = Alloc({})
+    print(
+        f"Test requires {contracts_required} contracts. "
+        f"Salts 0 through {contracts_required - 1} are required."
+    )
     for salt in range(contracts_required):
         if salt >= len(mined_contract_file.contracts):
             raise RuntimeError(
@@ -347,6 +352,10 @@ def test_worst_depth_stateroot_recomp(
             salt=Hash(salt),
             initcode=mined_contract_file.initcode,
             storage=dict.fromkeys(mined_contract_file.storage_keys, 1),
+            label=(
+                f"mined_contract_s{storage_depth}_"
+                f"acc{account_depth}_salt_{salt}"
+            ),
         )
         assert (
             deployed_contract_address == salted_contract_info.contract_address

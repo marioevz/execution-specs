@@ -219,6 +219,31 @@ class Alloc(SharedAlloc):
         contract_address.label = label
         return contract_address
 
+    def _deterministic_deploy_contracts(
+        self,
+        *,
+        deploy_code: BytesConvertible,
+        salts: List[Hash | int],
+        initcode: BytesConvertible | None,
+        storage: Storage | StorageRootType | None,
+        label: str | None,
+    ) -> List[Address]:
+        """
+        Filler implementation of batch deterministic contract deployment.
+
+        Iterates over salts and delegates to the singular method.
+        """
+        return [
+            self._deterministic_deploy_contract(
+                deploy_code=deploy_code,
+                salt=salt,
+                initcode=initcode,
+                storage=storage,
+                label=f"{label}_{i}" if label else None,
+            )
+            for i, salt in enumerate(salts)
+        ]
+
     def _deploy_contract(
         self,
         code: BytesConvertible,
@@ -375,6 +400,25 @@ class Alloc(SharedAlloc):
         """
         del minimum_balance
         self.__internal_setitem__(address, Account(balance=amount))
+
+    def _fund_addresses(
+        self,
+        addresses: List[Address],
+        amount: int,
+        *,
+        minimum_balance: bool,
+    ) -> None:
+        """
+        Filler implementation of batch address funding.
+
+        Iterates over addresses and delegates to the singular method.
+        """
+        for address in addresses:
+            self._fund_address(
+                address=address,
+                amount=amount,
+                minimum_balance=minimum_balance,
+            )
 
     def _nonexistent_account(self) -> Address:
         """

@@ -396,11 +396,160 @@ class Alloc(SharedAlloc):
 
             self._deployed_contracts.append((contract_address, deploy_code))
 
-        account = self._eth_rpc.get_account(contract_address)
-        self.__internal_setitem__(contract_address, account)
+        self.__internal_setitem__(
+            contract_address,
+            Account(
+                code=deploy_code,
+            ),
+        )
 
         contract_address.label = label
         return contract_address
+
+    def _deterministic_deploy_contracts(
+        self,
+        *,
+        deploy_code: BytesConvertible,
+        salts: List[Hash | int],
+        initcode: BytesConvertible | None,
+        storage: Storage | StorageRootType | None,
+        label: str | None,
+    ) -> List[Address]:
+        """
+        Execute implementation of batch deterministic contract deployment.
+
+        Use a single batched ``get_code`` RPC call to check which contracts
+        already exist, then create deploy transactions only for the missing
+        ones.
+        """
+        del storage
+        if not salts:
+            return []
+
+        gas_costs = self._fork.gas_costs()
+        memory_expansion_gas_calculator = (
+            self._fork.memory_expansion_gas_calculator()
+        )
+        calldata_gas_calculator = self._fork.calldata_gas_calculator(
+            block_number=0, timestamp=0
+        )
+        if not isinstance(deploy_code, Bytes):
+            deploy_code = Bytes(deploy_code)
+        if initcode is None:
+            initcode = Initcode(deploy_code=deploy_code)
+        elif not isinstance(initcode, Bytes):
+            initcode = Bytes(initcode)
+
+        # Compute all contract addresses up-front.
+        hash_salts = [Hash(s) for s in salts]
+        contract_addresses = [
+            compute_deterministic_create2_address(
+                salt=s, initcode=initcode, fork=self._fork
+            )
+            for s in hash_salts
+        ]
+
+        # Batch query for existing code at all addresses.
+        chain_codes = self._eth_rpc.get_codes(contract_addresses)
+
+        # Pre-compute gas / size values (shared across all deploys).
+        max_code_size = self._fork.max_code_size()
+        if len(deploy_code) > max_code_size:
+            raise ValueError(
+                f"code too large: {len(deploy_code)} > {max_code_size}"
+            )
+        max_initcode_size = self._fork.max_initcode_size()
+        if len(initcode) > max_initcode_size:
+            raise ValueError(
+                f"initcode too large {len(initcode)} > {max_initcode_size}"
+            )
+        deploy_gas_limit = gas_costs.GAS_TX_BASE + gas_costs.GAS_TX_CREATE
+        deploy_gas_limit += (
+            len(deploy_code) * gas_costs.GAS_CODE_DEPOSIT_PER_BYTE
+        )
+        deploy_gas_limit += memory_expansion_gas_calculator(
+            new_bytes=len(initcode)
+        )
+        deploy_gas_limit += calldata_gas_calculator(data=initcode)
+        deploy_gas_limit = deploy_gas_limit * 2
+        tx_gas_limit_cap = self._fork.transaction_gas_limit_cap()
+        if tx_gas_limit_cap and deploy_gas_limit > tx_gas_limit_cap:
+            raise ValueError(
+                f"deterministic deploy gas limit exceeds the transaction "
+                f"gas limit cap: {deploy_gas_limit} > {tx_gas_limit_cap}"
+            )
+
+        factory_checked = False
+        needs_deploy = 0
+
+        for i, (contract_address, chain_code, salt) in enumerate(
+            zip(contract_addresses, chain_codes, hash_salts, strict=True)
+        ):
+            contract_label = f"{label}_{i}" if label else None
+            if chain_code != b"":
+                assert chain_code == deploy_code, (
+                    "Deterministic deployed contract's code on chain does "
+                    "not match the expected code: "
+                    f"Expected: {deploy_code}, "
+                    f"Current: {chain_code}"
+                )
+                logger.info(
+                    f"Contract already deployed at {contract_address} "
+                    f"(label={contract_label})"
+                )
+            else:
+                if not factory_checked:
+                    assert (
+                        check_deterministic_factory_deployment(
+                            eth_rpc=self._eth_rpc, fork=self._fork
+                        )
+                        is not None
+                    ), "Deployment contract code is not found"
+                    factory_checked = True
+
+                logger.info(
+                    f"Contract {contract_address} not found, deploying "
+                    f"(label={contract_label})"
+                )
+                deploy_tx = self._add_pending_tx(
+                    action="deterministic_deploy_contract",
+                    target=contract_label,
+                    to=DETERMINISTIC_FACTORY_ADDRESS,
+                    data=Bytes(salt) + Bytes(initcode),
+                    gas_limit=deploy_gas_limit,
+                    value=0,
+                )
+                code_size = len(deploy_code)
+                initcode_size = len(initcode)
+                logger.info(
+                    f"Contract deployment tx created "
+                    f"(label={contract_label}): "
+                    f"tx_nonce={deploy_tx.nonce}, "
+                    f"gas_limit={deploy_gas_limit}, "
+                    f"code_size={code_size} bytes, "
+                    f"initcode_size={initcode_size} bytes"
+                )
+                logger.debug(
+                    f"Contract will be deployed at {contract_address} "
+                    f"(label={contract_label}, "
+                    f"tx_index={len(self._pending_txs) - 1})"
+                )
+                self._deployed_contracts.append(
+                    (contract_address, deploy_code)
+                )
+                needs_deploy += 1
+
+            self.__internal_setitem__(
+                contract_address,
+                Account(code=deploy_code),
+            )
+            contract_address.label = contract_label
+
+        logger.info(
+            f"Batch deterministic deploy: {len(salts)} contracts, "
+            f"{needs_deploy} new deployments"
+        )
+        return contract_addresses
 
     def _deploy_contract(
         self,
@@ -741,6 +890,83 @@ class Alloc(SharedAlloc):
         logger.info(
             f"Address {address} funding tx created (label={address.label}): "
             f"{Number(amount) / 10**18:.18f} ETH"
+        )
+
+    def _fund_addresses(
+        self,
+        addresses: List[Address],
+        amount: int,
+        *,
+        minimum_balance: bool,
+    ) -> None:
+        """
+        Execute implementation of batch address funding.
+
+        Use a single batched ``get_balance`` RPC call when
+        ``minimum_balance`` is set, then create funding transactions for
+        each address.
+        """
+        if not addresses:
+            return
+
+        if minimum_balance:
+            current_balances = self._eth_rpc.get_balances(addresses)
+        else:
+            current_balances = [0] * len(addresses)
+
+        funded = 0
+        skipped = 0
+        for address, current_balance in zip(
+            addresses, current_balances, strict=True
+        ):
+            if minimum_balance:
+                if current_balance >= amount:
+                    cur_eth = current_balance / 10**18
+                    min_eth = amount / 10**18
+                    logger.info(
+                        f"Skipping funding for address {address} "
+                        f"(label={address.label}): current balance "
+                        f"{cur_eth:.18f} ETH >= minimum "
+                        f"{min_eth:.18f} ETH"
+                    )
+                    self.__internal_setitem__(
+                        address, Account(balance=current_balance)
+                    )
+                    skipped += 1
+                    continue
+                fund_eth = amount / 10**18
+                logger.debug(
+                    f"Funding address to minimum balance {address} "
+                    f"(label={address.label}): {fund_eth:.18f} ETH"
+                )
+                self._add_pending_tx(
+                    action="fund_address",
+                    target=address.label,
+                    to=address,
+                    value=amount - current_balance,
+                )
+                new_balance = amount
+            else:
+                fund_eth = amount / 10**18
+                logger.debug(
+                    f"Funding address {address} "
+                    f"(label={address.label}): "
+                    f"{fund_eth:.18f} ETH"
+                )
+                self._add_pending_tx(
+                    action="fund_address",
+                    target=address.label,
+                    to=address,
+                    value=amount,
+                )
+                new_balance = current_balance + amount
+
+            self.__internal_setitem__(address, Account(balance=new_balance))
+            funded += 1
+
+        logger.info(
+            f"Batch fund addresses: {len(addresses)} addresses, "
+            f"{funded} funded, {skipped} skipped"
         )
 
     def _nonexistent_account(self) -> Address:

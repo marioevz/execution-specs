@@ -150,10 +150,11 @@ class TransactionPost(BaseExecute):
         benchmark_gas_used: int | None = None
         if self.benchmark_mode:
             benchmark_gas_used = 0
-            for tx_hash in last_block_tx_hashes:
-                receipt = eth_rpc.get_transaction_receipt(tx_hash)
+            receipts = eth_rpc.get_transaction_receipts(last_block_tx_hashes)
+            for i, receipt in enumerate(receipts):
                 assert receipt is not None, (
-                    f"Failed to get receipt for transaction {tx_hash}"
+                    "Failed to get receipt for transaction "
+                    f"{last_block_tx_hashes[i]}"
                 )
                 gas_used = int(receipt["gasUsed"], 16)
                 benchmark_gas_used += gas_used

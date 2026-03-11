@@ -1,7 +1,7 @@
 """Shared pre-alloc functionality."""
 
 from enum import IntFlag, auto
-from typing import Any, Literal, Set
+from typing import Any, List, Literal, Set
 
 from pydantic import PrivateAttr
 
@@ -167,6 +167,58 @@ class Alloc(BaseAlloc):
             "class"
         )
 
+    def deterministic_deploy_contracts(
+        self,
+        *,
+        deploy_code: BytesConvertible,
+        salts: List[Hash | int],
+        initcode: BytesConvertible | None = None,
+        storage: Storage | StorageRootType | None = None,
+        label: str | None = None,
+    ) -> List[Address]:
+        """
+        Deploy a contract to multiple deterministic locations using a
+        deterministic deployment proxy and a list of salts.
+
+        Each salt produces a unique deployment address for the same code.
+        Implementations may batch network queries for efficiency.
+
+        Args:
+            deploy_code: Contract code to deploy.
+            salts: List of salts for deterministic deployment.
+            initcode: Initcode to use for deterministic deployment.
+                      If `None`, the initcode is derived from `deploy_code`.
+            storage: The expected storage state of the deployed contract after
+                     initcode execution.
+            label: Base label for the contracts; each contract gets
+                   ``label_<index>`` appended.
+
+        """
+        return self._deterministic_deploy_contracts(
+            deploy_code=deploy_code,
+            salts=salts,
+            initcode=initcode,
+            storage=storage,
+            label=label,
+        )
+
+    def _deterministic_deploy_contracts(
+        self,
+        *,
+        deploy_code: BytesConvertible,
+        salts: List[Hash | int],
+        initcode: BytesConvertible | None,
+        storage: Storage | StorageRootType | None,
+        label: str | None,
+    ) -> List[Address]:
+        """
+        Sub-class implementation of batch deterministic contract deployment.
+        """
+        raise NotImplementedError(
+            "_deterministic_deploy_contracts is not implemented in the base "
+            "class"
+        )
+
     def deploy_contract(
         self,
         code: BytesConvertible,
@@ -315,6 +367,54 @@ class Alloc(BaseAlloc):
         """
         raise NotImplementedError(
             "_fund_address is not implemented in the base class"
+        )
+
+    def fund_addresses(
+        self,
+        addresses: List[Address],
+        amount: NumberConvertible,
+        *,
+        minimum_balance: bool = False,
+    ) -> None:
+        """
+        Fund multiple addresses with the same amount.
+
+        Implementations may batch network queries for efficiency.
+
+        Args:
+            addresses: Addresses to fund
+            amount: Amount to fund each address in Wei
+            minimum_balance: If set to True, each account will be checked to
+                have a minimum balance of ``amount`` and only funded if the
+                balance is insufficient
+
+        """
+        for address in addresses:
+            if address in self:
+                raise Exception(
+                    "Cannot fund an account already in state. "
+                    "Use the appropriate `amount`, `balance` arguments "
+                    "when creating the account."
+                )
+            self._pre_funded_addresses.add(address)
+        return self._fund_addresses(
+            addresses=addresses,
+            amount=int(Number(amount)),
+            minimum_balance=minimum_balance,
+        )
+
+    def _fund_addresses(
+        self,
+        addresses: List[Address],
+        amount: int,
+        *,
+        minimum_balance: bool,
+    ) -> None:
+        """
+        Sub-class implementation of fund_addresses.
+        """
+        raise NotImplementedError(
+            "_fund_addresses is not implemented in the base class"
         )
 
     def nonexistent_account(self) -> Address:

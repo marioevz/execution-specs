@@ -421,6 +421,38 @@ class Alloc(BaseAlloc):
             "class"
         )
 
+    def deterministic_deploy_contracts(
+        self,
+        *,
+        deploy_code: BytesConvertible,
+        salts: List[Hash | int],
+        initcode: BytesConvertible | None = None,
+        storage: Storage | StorageRootType | None = None,
+        label: str | None = None,
+    ) -> List[Address]:
+        """
+        Deploy a contract to multiple deterministic locations using a
+        deterministic deployment proxy and a list of salts.
+
+        Each salt produces a unique deployment address for the same code.
+        Implementations may batch network queries for efficiency.
+
+        Args:
+            deploy_code: Contract code to deploy.
+            salts: List of salts for deterministic deployment.
+            initcode: Initcode to use for deterministic deployment.
+                      If `None`, the initcode is derived from `deploy_code`.
+            storage: The expected storage state of the deployed contract after
+                     initcode execution.
+            label: Base label for the contracts; each contract gets
+                   ``label_<index>`` appended.
+
+        """
+        raise NotImplementedError(
+            "deterministic_deploy_contracts is not implemented in the base "
+            "class"
+        )
+
     def deploy_contract(
         self,
         code: BytesConvertible,
@@ -479,6 +511,30 @@ class Alloc(BaseAlloc):
         """
         raise NotImplementedError(
             "fund_address is not implemented in the base class"
+        )
+
+    def fund_addresses(
+        self,
+        addresses: List[Address],
+        amount: NumberConvertible,
+        *,
+        minimum_balance: bool = False,
+    ) -> None:
+        """
+        Fund multiple addresses with the same amount.
+
+        Implementations may batch network queries for efficiency.
+
+        Args:
+            addresses: Addresses to fund
+            amount: Amount to fund each address in Wei
+            minimum_balance: If set to True, each account will be checked to
+                have a minimum balance of ``amount`` and only funded if the
+                balance is insufficient
+
+        """
+        raise NotImplementedError(
+            "fund_addresses is not implemented in the base class"
         )
 
     def nonexistent_account(self) -> Address:

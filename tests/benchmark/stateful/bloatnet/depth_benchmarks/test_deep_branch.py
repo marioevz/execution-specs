@@ -337,7 +337,19 @@ def test_worst_depth_stateroot_recomp(
         f"Test requires {contracts_required} contracts. "
         f"Salts 0 through {contracts_required - 1} are required."
     )
-    for salt in range(contracts_required):
+    deployed_contract_addresses = pre.deterministic_deploy_contracts(
+        deploy_code=mined_contract_file.deploy_code,
+        salts=[Hash(salt) for salt in range(contracts_required)],
+        initcode=mined_contract_file.initcode,
+        storage=dict.fromkeys(mined_contract_file.storage_keys, 1),
+        label=f"mined_contract_s{storage_depth}_acc{account_depth}",
+    )
+    fund_addresses: List[Address] = []
+    for salt, deployed_contract_address in zip(
+        range(contracts_required),
+        deployed_contract_addresses,
+        strict=True,
+    ):
         if salt >= len(mined_contract_file.contracts):
             raise RuntimeError(
                 f"Requested salt {salt} but only "
@@ -347,32 +359,23 @@ def test_worst_depth_stateroot_recomp(
         assert salted_contract_info.salt == salt, (
             f"Salt out of order: {salted_contract_info.salt} != {salt}"
         )
-        deployed_contract_address = pre.deterministic_deploy_contract(
-            deploy_code=mined_contract_file.deploy_code,
-            salt=Hash(salt),
-            initcode=mined_contract_file.initcode,
-            storage=dict.fromkeys(mined_contract_file.storage_keys, 1),
-            label=(
-                f"mined_contract_s{storage_depth}_"
-                f"acc{account_depth}_salt_{salt}"
-            ),
-        )
         assert (
             deployed_contract_address == salted_contract_info.contract_address
         ), (
             f"Contract address mismatch: {deployed_contract_address} != "
             f"{salted_contract_info.contract_address}, salt: {salt}"
         )
-        for auxiliary_account in salted_contract_info.auxiliary_accounts:
-            # Ensure the account exists in the state trie
-            pre.fund_address(
-                address=auxiliary_account, amount=1, minimum_balance=True
-            )
+        fund_addresses.extend(salted_contract_info.auxiliary_accounts)
 
         # Set the post expectations
         storage = dict.fromkeys(mined_contract_file.storage_keys, 1)
         storage[mined_contract_file.storage_keys[-1]] = attack_value
         post[salted_contract_info.contract_address] = Account(storage=storage)
+
+    # Ensure the auxiliary accounts exist in the state trie
+    pre.fund_addresses(
+        addresses=fund_addresses, amount=1, minimum_balance=True
+    )
 
     # Create an EOA with funds for the deployer
     sender = pre.fund_eoa()

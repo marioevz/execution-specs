@@ -26,7 +26,7 @@ REFERENCE_SPEC_VERSION = "N/A"
     ["state_tests/stShift/shiftSignedCombinationsFiller.yml"],
 )
 @pytest.mark.valid_from("Cancun")
-@pytest.mark.valid_until("Prague")
+@pytest.mark.valid_until("EIP7825")
 @pytest.mark.pre_alloc_mutable
 def test_shift_signed_combinations(
     state_test: StateTestFiller,

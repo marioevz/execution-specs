@@ -26,7 +26,7 @@ REFERENCE_SPEC_VERSION = "N/A"
     ["state_tests/stSystemOperationsTest/ABAcalls1Filler.json"],
 )
 @pytest.mark.valid_from("Cancun")
-@pytest.mark.valid_until("Prague")
+@pytest.mark.valid_until("EIP7825")
 @pytest.mark.pre_alloc_mutable
 def test_ab_acalls1(
     state_test: StateTestFiller,

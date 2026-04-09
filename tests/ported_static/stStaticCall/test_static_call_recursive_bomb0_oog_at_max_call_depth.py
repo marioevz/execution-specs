@@ -28,7 +28,7 @@ REFERENCE_SPEC_VERSION = "N/A"
     ],
 )
 @pytest.mark.valid_from("Cancun")
-@pytest.mark.valid_until("Prague")
+@pytest.mark.valid_until("EIP7825")
 @pytest.mark.slow
 @pytest.mark.pre_alloc_mutable
 def test_static_call_recursive_bomb0_oog_at_max_call_depth(

@@ -26,7 +26,7 @@ REFERENCE_SPEC_VERSION = "N/A"
     ["state_tests/stSolidityTest/TestStoreGasPricesFiller.json"],
 )
 @pytest.mark.valid_from("Cancun")
-@pytest.mark.valid_until("Prague")
+@pytest.mark.valid_until("EIP7825")
 @pytest.mark.pre_alloc_mutable
 def test_test_store_gas_prices(
     state_test: StateTestFiller,

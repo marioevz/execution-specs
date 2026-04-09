@@ -28,7 +28,7 @@ REFERENCE_SPEC_VERSION = "N/A"
     ],
 )
 @pytest.mark.valid_from("Cancun")
-@pytest.mark.valid_until("Prague")
+@pytest.mark.valid_until("EIP7825")
 @pytest.mark.pre_alloc_mutable
 def test_callcode1024_balance_too_low(
     state_test: StateTestFiller,

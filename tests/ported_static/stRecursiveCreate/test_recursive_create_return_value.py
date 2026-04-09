@@ -27,7 +27,7 @@ REFERENCE_SPEC_VERSION = "N/A"
     ["state_tests/stRecursiveCreate/recursiveCreateReturnValueFiller.json"],
 )
 @pytest.mark.valid_from("Cancun")
-@pytest.mark.valid_until("Prague")
+@pytest.mark.valid_until("EIP7825")
 @pytest.mark.pre_alloc_mutable
 def test_recursive_create_return_value(
     state_test: StateTestFiller,

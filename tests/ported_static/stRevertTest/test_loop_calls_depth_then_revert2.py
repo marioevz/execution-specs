@@ -27,7 +27,7 @@ REFERENCE_SPEC_VERSION = "N/A"
     ["state_tests/stRevertTest/LoopCallsDepthThenRevert2Filler.json"],
 )
 @pytest.mark.valid_from("Cancun")
-@pytest.mark.valid_until("Prague")
+@pytest.mark.valid_until("EIP7825")
 @pytest.mark.pre_alloc_mutable
 def test_loop_calls_depth_then_revert2(
     state_test: StateTestFiller,

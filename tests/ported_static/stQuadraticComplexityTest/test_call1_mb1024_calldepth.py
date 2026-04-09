@@ -30,7 +30,7 @@ REFERENCE_SPEC_VERSION = "N/A"
     ["state_tests/stQuadraticComplexityTest/Call1MB1024CalldepthFiller.json"],
 )
 @pytest.mark.valid_from("Cancun")
-@pytest.mark.valid_until("Prague")
+@pytest.mark.valid_until("EIP7825")
 @pytest.mark.slow
 @pytest.mark.parametrize(
     "d, g, v",

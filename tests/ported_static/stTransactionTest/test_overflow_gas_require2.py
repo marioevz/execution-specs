@@ -29,7 +29,7 @@ REFERENCE_SPEC_VERSION = "N/A"
     ["state_tests/stTransactionTest/OverflowGasRequire2Filler.json"],
 )
 @pytest.mark.valid_from("Cancun")
-@pytest.mark.valid_until("Prague")
+@pytest.mark.valid_until("EIP7825")
 @pytest.mark.pre_alloc_mutable
 def test_overflow_gas_require2(
     state_test: StateTestFiller,

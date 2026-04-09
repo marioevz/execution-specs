@@ -131,9 +131,16 @@ def analyze(
     valid_forks_chrono = [f for f in all_fork_names if f in valid_forks_set]
     valid_from = valid_forks_chrono[0] if valid_forks_chrono else "Cancun"
 
+    # valid_until uses non-inclusive semantics: the test is NOT valid in
+    # the named fork/EIP.  When the last valid fork is Prague, tests
+    # become invalid in Osaka due to EIP-7825, so emit "EIP7825".
+    _VALID_UNTIL_MAP: dict[str, str] = {
+        "Prague": "EIP7825",
+    }
     valid_until: str | None = None
     if valid_forks_chrono and valid_forks_chrono[-1] != all_fork_names[-1]:
-        valid_until = valid_forks_chrono[-1]
+        last_valid = valid_forks_chrono[-1]
+        valid_until = _VALID_UNTIL_MAP.get(last_valid, last_valid)
 
     # 4. Category from filler path
     category = filler_path.parent.name if filler_path.parent.name else ""

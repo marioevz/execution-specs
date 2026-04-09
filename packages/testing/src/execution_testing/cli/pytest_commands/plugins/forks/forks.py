@@ -955,7 +955,7 @@ class ValidUntil(ValidityMarker):
     """
 
     def _process_with_marker_args(
-        self, *fork_args: str
+        self, *fork_args: str, inclusive: bool = False
     ) -> Set[Fork | TransitionFork]:
         """Process the fork arguments."""
         forks: Set[Fork | TransitionFork] = self.process_fork_arguments(
@@ -963,7 +963,11 @@ class ValidUntil(ValidityMarker):
         )
         resulting_set: Set[Fork | TransitionFork] = set()
         for fork in forks:
-            resulting_set |= {f for f in ALL_FORKS if f <= fork}
+            resulting_set |= (
+                {f for f in ALL_FORKS if f <= fork}
+                if inclusive
+                else {f for f in ALL_FORKS if f < fork}
+            )
         return resulting_set
 
 

@@ -279,31 +279,43 @@ def charge_gas(evm: Evm, amount: Uint) -> None:
     evm.regular_gas_used += amount
 
 
-def charge_state_gas(evm: Evm, amount: Uint) -> None:
+def charge_state_bytes_gas(evm: Evm, state_bytes: int) -> None:
     """
-    Subtracts `amount` from the state gas reservoir, then from
-    `evm.gas_left` when the reservoir is empty. Records state gas usage.
+    Calculates the amount of gas from the state bytes used/refunded from the
+    state gas reservoir, then from `evm.gas_left` when the reservoir is empty.
+    Records state gas usage.
 
     Parameters
     ----------
     evm :
         The current EVM.
-    amount :
-        The amount of state gas the current operation requires.
+    state_bytes :
+        The amount of state bytes that need to be charged.
 
     """
-    evm_trace(evm, StateGasAndRefund(int(amount)))
+    evm_trace(evm, StateGasAndRefund(state_bytes))
 
-    if evm.state_gas_left >= amount:
-        evm.state_gas_left -= amount
-    elif evm.state_gas_left + evm.gas_left >= amount:
-        remainder = amount - evm.state_gas_left
-        evm.state_gas_left = Uint(0)
-        evm.gas_left -= remainder
+    state_gas = state_bytes * int(COST_PER_STATE_BYTE)
+
+    if state_gas > 0:
+        amount = Uint(state_gas)
+        if evm.state_gas_left >= amount:
+            evm.state_gas_left -= amount
+        elif evm.state_gas_left + evm.gas_left >= amount:
+            remainder = amount - evm.state_gas_left
+            evm.state_gas_left = Uint(0)
+            evm.gas_left -= remainder
+        else:
+            raise OutOfGasError
+
+        evm.state_gas_used += amount
     else:
-        raise OutOfGasError
-
-    evm.state_gas_used += amount
+        refund = Uint(state_gas * -1)
+        applied = min(refund, evm.state_gas_used)
+        evm.state_gas_left += applied
+        evm.state_gas_used -= applied
+        evm.state_gas_refund += applied
+        evm.state_gas_refund_pending += refund - applied
 
 
 def calculate_memory_gas_cost(size_in_bytes: Uint) -> Uint:

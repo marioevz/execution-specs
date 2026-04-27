@@ -47,12 +47,7 @@ from ..state_tracker import (
 )
 from ..vm import Message
 from ..vm.eoa_delegation import get_delegated_code_address, set_delegation
-from ..vm.gas import (
-    COST_PER_STATE_BYTE,
-    GasCosts,
-    charge_gas,
-    charge_state_gas,
-)
+from ..vm.gas import GasCosts, charge_gas, charge_state_bytes_gas
 from ..vm.precompiled_contracts.mapping import PRE_COMPILED_CONTRACTS
 from . import Evm, emit_transfer_log
 from .exceptions import (
@@ -150,7 +145,7 @@ def process_message_call(message: Message) -> MessageCallOutput:
             )
             message.code_address = delegated_address
 
-        evm = process_message(message)
+        evm = process_message(message, False)
 
     if evm.error:
         logs: Tuple[Log, ...] = ()
@@ -194,8 +189,6 @@ def process_create_message(message: Message) -> Evm:
 
     """
     tx_state = message.tx_env.state
-    # take snapshot of state before processing the message
-    snapshot = copy_tx_state(tx_state)
 
     # If the address where the account is being created has storage, it is
     # destroyed. This can only happen in the following highly unlikely
@@ -214,49 +207,19 @@ def process_create_message(message: Message) -> Evm:
 
     increment_nonce(tx_state, message.current_target)
 
-    evm = process_message(message)
-    if not evm.error:
-        contract_code = evm.output
-        try:
-            if len(contract_code) > 0:
-                if contract_code[0] == 0xEF:
-                    raise InvalidContractPrefix
-            if len(contract_code) > MAX_CODE_SIZE:
-                raise OutOfGasError
-            # Hash cost for computing keccak256 of deployed bytecode
-            code_hash_gas = (
-                GasCosts.OPCODE_KECCACK256_PER_WORD
-                * ceil32(Uint(len(contract_code)))
-                // Uint(32)
-            )
-            charge_gas(evm, code_hash_gas)
-            code_deposit_state_gas = (
-                Uint(len(contract_code)) * COST_PER_STATE_BYTE
-            )
-            charge_state_gas(evm, code_deposit_state_gas)
-        except ExceptionalHalt as error:
-            restore_tx_state(tx_state, snapshot)
-            evm.regular_gas_used += evm.gas_left
-            evm.gas_left = Uint(0)
-            # State gas is preserved on exceptional halt so it can be
-            # returned to the parent frame via incorporate_child_on_error.
-            evm.output = b""
-            evm.error = error
-        else:
-            set_code(tx_state, message.current_target, contract_code)
-    else:
-        restore_tx_state(tx_state, snapshot)
-    return evm
+    return process_message(message, True)
 
 
-def process_message(message: Message) -> Evm:
+def process_message(message: Message, create: bool) -> Evm:
     """
-    Move ether and execute the relevant code.
+    Move ether and execute the relevant code, and optionally create a contract.
 
     Parameters
     ----------
     message :
         Transaction specific items.
+    create :
+        Message is contract creation.
 
     Returns
     -------
@@ -280,6 +243,7 @@ def process_message(message: Message) -> Evm:
         state_gas_left=message.state_gas_reservoir,
         valid_jump_destinations=valid_jump_destinations,
         logs=(),
+        state_bytes_counter=0,
         refund_counter=0,
         running=True,
         message=message,
@@ -326,6 +290,24 @@ def process_message(message: Message) -> Evm:
                 evm_trace(evm, OpEnd())
 
             evm_trace(evm, EvmStop(Ops.STOP))
+        if create:
+            contract_code = evm.output
+            if len(contract_code) > 0:
+                if contract_code[0] == 0xEF:
+                    raise InvalidContractPrefix
+            if len(contract_code) > MAX_CODE_SIZE:
+                raise OutOfGasError
+            # Hash cost for computing keccak256 of deployed bytecode
+            code_hash_gas = (
+                GasCosts.OPCODE_KECCACK256_PER_WORD
+                * ceil32(Uint(len(contract_code)))
+                // Uint(32)
+            )
+            charge_gas(evm, code_hash_gas)
+            evm.state_bytes_counter += len(contract_code)
+        charge_state_bytes_gas(evm, evm.state_bytes_counter)
+        if create:
+            set_code(tx_state, message.current_target, evm.output)
 
     except ExceptionalHalt as error:
         evm_trace(evm, OpException(error))

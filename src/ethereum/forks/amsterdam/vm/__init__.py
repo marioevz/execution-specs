@@ -170,6 +170,7 @@ class Evm:
     state_gas_left: Uint
     valid_jump_destinations: Set[Uint]
     logs: Tuple[Log, ...]
+    state_bytes_counter: int
     refund_counter: int
     running: bool
     message: Message

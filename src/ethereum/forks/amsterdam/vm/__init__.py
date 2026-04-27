@@ -186,32 +186,6 @@ class Evm:
     state_gas_refund_pending: Uint = Uint(0)
 
 
-def credit_state_gas_refund(evm: Evm, amount: Uint) -> None:
-    """
-    Credit an inline state gas refund to `evm.state_gas_left`.
-
-    Clamp the applied portion to this frame's `state_gas_used` — the
-    matching charge may sit in an ancestor sharing storage via
-    CALLCODE/DELEGATECALL.  Track it in `state_gas_refund` so
-    `incorporate_child_on_error` can undo the inflation, and defer the
-    unapplied remainder in `state_gas_refund_pending` for propagation
-    on success.
-
-    Parameters
-    ----------
-    evm :
-        The frame crediting the refund.
-    amount :
-        The refund amount to credit.
-
-    """
-    applied = min(amount, evm.state_gas_used)
-    evm.state_gas_left += applied
-    evm.state_gas_used -= applied
-    evm.state_gas_refund += applied
-    evm.state_gas_refund_pending += amount - applied
-
-
 def incorporate_child_on_success(evm: Evm, child_evm: Evm) -> None:
     """
     Incorporate the state of a successful `child_evm` into the parent `evm`.
@@ -239,7 +213,6 @@ def incorporate_child_on_success(evm: Evm, child_evm: Evm) -> None:
     evm.regular_gas_used += child_evm.regular_gas_used
     evm.state_gas_used += child_evm.state_gas_used
     evm.state_gas_refund += child_evm.state_gas_refund
-    credit_state_gas_refund(evm, child_evm.state_gas_refund_pending)
 
 
 def incorporate_child_on_error(

@@ -17,6 +17,7 @@ from typing import (
 from pydantic import Field, PlainSerializer, PlainValidator
 
 from execution_testing.base_types import (
+    Address,
     Bloom,
     Bytes,
     CamelModel,
@@ -323,6 +324,7 @@ class Traces(EthereumTestRootModel):
 
 _opcode_synonyms = {
     "KECCAK256": "SHA3",
+    "KECCAK": "SHA3",
     "DIFFICULTY": "PREVRANDAO",
 }
 
@@ -369,6 +371,22 @@ class OpcodeCount(EthereumTestRootModel):
         for match_key in self.root.keys() & other.root.keys():
             new_dict[match_key] = self.root[match_key] + other.root[match_key]
         return self.__class__(new_dict)
+
+
+class SystemOpcodeCount(EthereumTestRootModel):
+    """Opcode count per system-tx returned from the evm tool."""
+
+    root: Dict[
+        Address,
+        Dict[
+            Annotated[
+                Opcodes | UndefinedOpcode,
+                PlainValidator(validate_opcode),
+                PlainSerializer(lambda o: str(o)),
+            ],
+            int,
+        ],
+    ]
 
 
 class Result(CamelModel):

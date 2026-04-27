@@ -115,13 +115,6 @@ class Eip3155Tracer(EvmTracer):
         """
         Create a trace of the event.
         """
-        # System Transaction do not have a tx_hash or index
-        if (
-            evm.message.tx_env.index_in_block is None
-            or evm.message.tx_env.tx_hash is None
-        ):
-            return
-
         assert isinstance(evm, Evm)
 
         if self.transaction_environment is not evm.message.tx_env:
@@ -158,12 +151,21 @@ class Eip3155Tracer(EvmTracer):
             final_trace = FinalTrace(event.gas_used, event.output, event.error)
             self.active_traces.append(final_trace)
 
-            output_traces(
-                self.active_traces,
-                evm.message.tx_env.index_in_block,
-                evm.message.tx_env.tx_hash,
-                self.output_basedir,
-            )
+            if evm.message.tx_env.tx_hash is None:
+                # System transactions: identify by block number + target.
+                output_system_traces(
+                    self.active_traces,
+                    int(evm.message.block_env.number),
+                    bytes(evm.message.current_target),
+                    self.output_basedir,
+                )
+            else:
+                output_traces(
+                    self.active_traces,
+                    evm.message.tx_env.index_in_block,
+                    evm.message.tx_env.tx_hash,
+                    self.output_basedir,
+                )
         elif isinstance(event, PrecompileStart):
             new_trace = Trace(
                 pc=int(evm.pc),
@@ -360,5 +362,38 @@ def output_traces(
         for trace in traces:
             if getattr(trace, "precompile", False):
                 # Traces related to pre-compile are not output.
+                continue
+            output_op_trace(trace, json_file)
+
+
+def output_system_traces(
+    traces: List[Union[Trace, FinalTrace]],
+    block_number: int,
+    target_address: bytes,
+    output_basedir: str | TextIO,
+) -> None:
+    """
+    Output the traces of a system transaction to a json file.
+
+    System transactions have no tx_hash or index_in_block, so the trace
+    is identified by the block number and the target system contract
+    address instead.
+    """
+    with ExitStack() as stack:
+        json_file: TextIO
+
+        if isinstance(output_basedir, str):
+            address_str = "0x" + target_address.hex()
+            output_path = os.path.join(
+                output_basedir,
+                f"trace-system-{block_number}-{address_str}.jsonl",
+            )
+            json_file = open(output_path, "w")
+            stack.push(json_file)
+        else:
+            json_file = output_basedir
+
+        for trace in traces:
+            if getattr(trace, "precompile", False):
                 continue
             output_op_trace(trace, json_file)

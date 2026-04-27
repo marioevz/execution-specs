@@ -555,10 +555,17 @@ class T8N(Load):
             self.logger.info(f"Wrote result to {result_output_path}")
 
         if self.options.opcode_count == "stdout":
-            opcode_count_results = self._tracer(CountTracer).results()
+            count_tracer = self._tracer(CountTracer)
+            opcode_count_results = count_tracer.results()
             json_output["opcodeCount"] = opcode_count_results
+            system_opcode_count_results = count_tracer.system_results()
+            if system_opcode_count_results:
+                json_output["systemOpcodeCount"] = (
+                    system_opcode_count_results
+                )
         elif self.options.opcode_count is not None:
-            opcode_count_results = self._tracer(CountTracer).results()
+            count_tracer = self._tracer(CountTracer)
+            opcode_count_results = count_tracer.results()
             result_output_path = os.path.join(
                 self.options.output_basedir,
                 self.options.opcode_count,
@@ -566,6 +573,22 @@ class T8N(Load):
             with open(result_output_path, "w") as f:
                 json.dump(opcode_count_results, f, indent=4)
             self.logger.info(f"Wrote opcode counts to {result_output_path}")
+
+            system_opcode_count_results = count_tracer.system_results()
+            if system_opcode_count_results:
+                base, ext = os.path.splitext(self.options.opcode_count)
+                system_filename = f"{base}.system{ext or '.json'}"
+                system_output_path = os.path.join(
+                    self.options.output_basedir, system_filename
+                )
+                with open(system_output_path, "w") as f:
+                    json.dump(
+                        system_opcode_count_results, f, indent=4
+                    )
+                self.logger.info(
+                    "Wrote system opcode counts to "
+                    f"{system_output_path}"
+                )
 
         if json_output:
             json.dump(json_output, self.out_file, indent=4)

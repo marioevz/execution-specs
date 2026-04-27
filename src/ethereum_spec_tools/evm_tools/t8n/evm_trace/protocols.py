@@ -4,7 +4,7 @@ Protocol definitions for working with EVM trace events.
 
 from typing import Optional, Protocol, runtime_checkable
 
-from ethereum_types.bytes import Bytes
+from ethereum_types.bytes import Bytes, Bytes20
 from ethereum_types.numeric import U256, Uint
 
 
@@ -19,6 +19,15 @@ class TransactionEnvironment(Protocol):
 
 
 @runtime_checkable
+class BlockEnvironment(Protocol):
+    """
+    The class implements the block_env interface for trace.
+    """
+
+    number: Uint
+
+
+@runtime_checkable
 class Message(Protocol):
     """
     The class implements the message interface for trace.
@@ -26,6 +35,8 @@ class Message(Protocol):
 
     depth: int
     tx_env: TransactionEnvironment
+    block_env: BlockEnvironment
+    current_target: Bytes20
     parent_evm: Optional["Evm"]
 
 

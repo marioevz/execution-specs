@@ -14,11 +14,15 @@ from ethereum_spec_tools.evm_tools.t8n import T8N, ForkCache
 from ethereum_spec_tools.evm_tools.utils import get_supported_forks
 from typing_extensions import override
 
-from execution_testing.client_clis.cli_types import TransitionToolOutput
+from execution_testing.client_clis.cli_types import (
+    SystemOpcodeCount,
+    TransitionToolOutput,
+)
 from execution_testing.client_clis.file_utils import (
     dump_files_to_directory,
 )
 from execution_testing.client_clis.transition_tool import (
+    OpcodeCount,
     Profiler,
     TransitionTool,
     model_dump_config,
@@ -74,7 +78,7 @@ class ExecutionSpecsTransitionTool(TransitionTool):
         """
         Evaluate using the EELS T8N entry point.
         """
-        del slow_request, profiler
+        del slow_request
         request_data = transition_tool_data.get_request_data()
         request_data_json = request_data.model_dump(
             mode="json", **model_dump_config
@@ -111,6 +115,14 @@ class ExecutionSpecsTransitionTool(TransitionTool):
                     "--trace",
                     "--trace.memory",
                     "--trace.returndata",
+                ]
+            )
+
+        if self.supports_opcode_count and self.opcode_count is not None:
+            t8n_args.extend(
+                [
+                    "--opcode.count",
+                    "opcodes.json",
                 ]
             )
 
@@ -154,6 +166,38 @@ class ExecutionSpecsTransitionTool(TransitionTool):
             self.collect_traces(
                 output.result.receipts, temp_dir, debug_output_path
             )
+        if self.supports_opcode_count and self.opcode_count is not None:
+            opcode_count_file_path = Path(temp_dir.name) / "opcodes.json"
+            if opcode_count_file_path.exists():
+                opcode_count = OpcodeCount.model_validate_json(
+                    opcode_count_file_path.read_text()
+                )
+                output.result.opcode_count = opcode_count
+
+                if debug_output_path:
+                    with profiler.pause():
+                        dump_files_to_directory(
+                            debug_output_path,
+                            {
+                                "opcodes.json": opcode_count.model_dump(),
+                            },
+                        )
+            system_opcode_count_file_path = (
+                Path(temp_dir.name) / "opcodes.system.json"
+            )
+            if system_opcode_count_file_path.exists():
+                system_opcode_count = SystemOpcodeCount.model_validate_json(
+                    system_opcode_count_file_path.read_text()
+                )
+                if debug_output_path:
+                    with profiler.pause():
+                        d = system_opcode_count.model_dump(mode="json")
+                        dump_files_to_directory(
+                            debug_output_path,
+                            {
+                                "opcodes.system.json": d,
+                            },
+                        )
         temp_dir.cleanup()
 
         return output

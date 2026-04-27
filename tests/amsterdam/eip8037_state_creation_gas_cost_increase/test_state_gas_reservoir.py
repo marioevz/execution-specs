@@ -282,7 +282,6 @@ def test_block_state_gas_limit_boundary(
     # rationale. Revisit if the framework exposes a cpsb query
     # that doesn't require mutating the fork.
     block_gas_limit = 100_000_000
-    fork._env_gas_limit = block_gas_limit
 
     intrinsic_cost = fork.transaction_intrinsic_cost_calculator()
     sstore_state_gas = fork.sstore_state_gas()
@@ -383,7 +382,6 @@ def test_creation_tx_regular_check_subtracts_intrinsic_state(
     # captures `gas_costs()` at creation time, so it must be
     # re-obtained. Revisit if the framework exposes a cpsb query
     # that doesn't require mutating the fork.
-    fork._env_gas_limit = block_gas_limit
     intrinsic_state = fork.transaction_intrinsic_state_gas(
         contract_creation=True,
     )
@@ -500,7 +498,6 @@ def test_creation_tx_state_check_exceeded(
     # this limit). Revisit if the framework exposes a cpsb query
     # that doesn't require mutating the fork.
     block_gas_limit = 100_000_000
-    fork._env_gas_limit = block_gas_limit
 
     intrinsic_cost = fork.transaction_intrinsic_cost_calculator()
     sstore_state_gas = fork.sstore_state_gas()
@@ -640,7 +637,6 @@ def test_block_2d_gas_valid_when_cumulative_exceeds_limit(
     # Revisit if the framework exposes a cpsb query that doesn't
     # require mutating the fork.
     block_gas_limit = 100_000_000
-    fork._env_gas_limit = block_gas_limit
 
     gas_costs = fork.gas_costs()
     sstore_state_gas = fork.sstore_state_gas()

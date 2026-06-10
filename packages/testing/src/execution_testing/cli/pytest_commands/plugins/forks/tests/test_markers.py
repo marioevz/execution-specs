@@ -1,21 +1,66 @@
 """Test fork markers and their effect on test parametrization."""
 
-from typing import List
+from typing import Any, List
 
 import pytest
+from _pytest.mark import ParameterSet
+from jinja2 import Template
 
-
-def generate_test(**kwargs: str) -> str:
-    """Generate a test function with the given fork markers."""
-    markers = [f"@pytest.mark.{key}({value})" for key, value in kwargs.items()]
-    marker_lines = "\n".join(markers)
-    return f"""
+TEST_TEMPLATE = Template(
+    """
 import pytest
-{marker_lines}
-@pytest.mark.state_test_only
-def test_case(state_test):
+{% for mark in marks %}@{{ mark }}
+{% endfor %}def test_case({{ parameters | join(", ") }}):
     pass
 """
+)
+
+
+def to_executable_str(obj: Any) -> str:
+    """Convert a single object into executable text."""
+    if isinstance(obj, list):
+        return "[" + ", ".join(to_executable_str(a) for a in obj) + "]"
+
+    elif isinstance(obj, str):
+        return f'"{obj}"'
+
+    elif isinstance(obj, ParameterSet):
+        args = [to_executable_str(v) for v in obj.values]
+        if obj.marks:
+            marks_list = ", ".join(to_executable_str(m) for m in obj.marks)
+            args.append(f"marks=[{marks_list}]")
+        args_str = ", ".join(args)
+        return f"pytest.param({args_str})"
+
+    elif isinstance(obj, pytest.MarkDecorator):
+        if not obj.args and not obj.kwargs:
+            return f"pytest.mark.{obj.name}()"
+        args = [to_executable_str(arg) for arg in obj.args]
+        args += [f"{k}={to_executable_str(v)}" for k, v in obj.kwargs.items()]
+        args_str = ", ".join(args)
+        return f"pytest.mark.{obj.name}({args_str})"
+
+    else:
+        return str(obj)
+
+
+def generate_test(*args: pytest.MarkDecorator, **kwargs: str) -> str:
+    """Generate a test function with the given markers."""
+    parameters = {"state_test"}
+    marks = list(args) + [pytest.mark.state_test_only]
+    for mark_name, arg in kwargs.items():
+        mark = getattr(pytest.mark, mark_name)
+        if arg:
+            mark = mark(arg)
+        marks.append(mark)
+    for mark in marks:
+        if mark.mark.name == "parametrize":
+            for arg in mark.args[0]:
+                parameters.add(arg)
+    return TEST_TEMPLATE.render(
+        marks=[to_executable_str(mark) for mark in marks],
+        parameters=sorted(parameters),
+    )
 
 
 @pytest.mark.parametrize(
@@ -23,7 +68,7 @@ def test_case(state_test):
     [
         pytest.param(
             generate_test(
-                valid_until='"Cancun"',
+                valid_until="Cancun",
             ),
             [],
             {"passed": 10, "failed": 0, "skipped": 0, "errors": 0},
@@ -31,7 +76,7 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_until='"Cancun"',
+                valid_until="Cancun",
             ),
             ["--from=Berlin"],
             {"passed": 5, "failed": 0, "skipped": 0, "errors": 0},
@@ -39,7 +84,7 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_from='"Paris"',
+                valid_from="Paris",
             ),
             ["--until=Prague"],
             {"passed": 4, "failed": 0, "skipped": 0, "errors": 0},
@@ -47,7 +92,7 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_from='"EIP3675"',
+                valid_from="EIP3675",
             ),
             ["--until=Prague"],
             {"passed": 4, "failed": 0, "skipped": 0, "errors": 0},
@@ -55,8 +100,8 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_from='"Paris"',
-                valid_until='"Cancun"',
+                valid_from="Paris",
+                valid_until="Cancun",
             ),
             [],
             {"passed": 3, "failed": 0, "skipped": 0, "errors": 0},
@@ -64,8 +109,8 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_from='"EIP3675"',
-                valid_until='"EIP4844"',
+                valid_from="EIP3675",
+                valid_until="EIP4844",
             ),
             [],
             {"passed": 3, "failed": 0, "skipped": 0, "errors": 0},
@@ -73,8 +118,8 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_from='"Paris"',
-                valid_until='"EIP4844"',
+                valid_from="Paris",
+                valid_until="EIP4844",
             ),
             [],
             {"passed": 3, "failed": 0, "skipped": 0, "errors": 0},
@@ -82,8 +127,8 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_from='"EIP3675"',
-                valid_until='"Cancun"',
+                valid_from="EIP3675",
+                valid_until="Cancun",
             ),
             [],
             {"passed": 3, "failed": 0, "skipped": 0, "errors": 0},
@@ -91,8 +136,8 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_from='"Paris"',
-                valid_until='"Cancun"',
+                valid_from="Paris",
+                valid_until="Cancun",
             ),
             ["--until=Prague"],
             {"passed": 3, "failed": 0, "skipped": 0, "errors": 0},
@@ -100,8 +145,8 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_from='"Paris"',
-                valid_until='"Cancun"',
+                valid_from="Paris",
+                valid_until="Cancun",
             ),
             ["--until=Shanghai"],
             {"passed": 2, "failed": 0, "skipped": 0, "errors": 0},
@@ -109,7 +154,7 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_at_transition_to='"Shanghai"',
+                valid_at_transition_to="Shanghai",
             ),
             [],
             {"passed": 1, "failed": 0, "skipped": 0, "errors": 0},
@@ -117,7 +162,7 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_at_transition_to='"Shanghai"',
+                valid_at_transition_to="Shanghai",
             ),
             ["--until=Prague"],
             {"passed": 1, "failed": 0, "skipped": 0, "errors": 0},
@@ -125,7 +170,7 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_at_transition_to='"Shanghai"',
+                valid_at_transition_to="Shanghai",
             ),
             ["--until=Berlin"],
             {"passed": 0, "failed": 0, "skipped": 0, "errors": 0},
@@ -133,7 +178,9 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_at_transition_to='"Paris", subsequent_forks=True',
+                pytest.mark.valid_at_transition_to(
+                    "Paris", subsequent_forks=True
+                ),
             ),
             ["--until=Prague"],
             {"passed": 3, "failed": 0, "skipped": 0, "errors": 0},
@@ -141,8 +188,8 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_at_transition_to=(
-                    '"Paris", subsequent_forks=True, until="Cancun"'
+                pytest.mark.valid_at_transition_to(
+                    "Paris", subsequent_forks=True, until="Cancun"
                 ),
             ),
             ["--until=Prague"],
@@ -151,7 +198,7 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_at_transition_to='"Cancun"',
+                valid_at_transition_to="Cancun",
             ),
             ["--fork=ShanghaiToCancunAtTime15k"],
             {"passed": 1, "failed": 0, "skipped": 0, "errors": 0},
@@ -159,7 +206,7 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_before='"Cancun"',
+                valid_before="Cancun",
             ),
             ["--from=Berlin", "--until=Prague"],
             {"passed": 4, "failed": 0, "skipped": 0, "errors": 0},
@@ -167,8 +214,8 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_from='"Paris"',
-                valid_before='"Cancun"',
+                valid_from="Paris",
+                valid_before="Cancun",
             ),
             ["--until=Prague"],
             {"passed": 2, "failed": 0, "skipped": 0, "errors": 0},
@@ -176,7 +223,7 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_before='"EIP4844"',
+                valid_before="EIP4844",
             ),
             ["--from=Berlin", "--until=Prague"],
             {"passed": 4, "failed": 0, "skipped": 0, "errors": 0},
@@ -184,8 +231,8 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_from='"EIP3675"',
-                valid_before='"EIP4844"',
+                valid_from="EIP3675",
+                valid_before="EIP4844",
             ),
             ["--until=Prague"],
             {"passed": 2, "failed": 0, "skipped": 0, "errors": 0},
@@ -193,8 +240,8 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_from='"Osaka"',
-                valid_until='"BPO1"',
+                valid_from="Osaka",
+                valid_until="BPO1",
             ),
             ["--until=BPO1"],
             {"passed": 1, "failed": 0, "skipped": 0, "errors": 0},
@@ -203,8 +250,8 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_from='"Osaka"',
-                valid_until='"BPO1"',
+                valid_from="Osaka",
+                valid_until="BPO1",
                 valid_for_bpo_forks="",
             ),
             ["--until=BPO1"],
@@ -214,8 +261,8 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_at_transition_to=(
-                    '"Osaka", subsequent_forks=True, until="BPO1"'
+                pytest.mark.valid_at_transition_to(
+                    "Osaka", subsequent_forks=True, until="BPO1"
                 ),
             ),
             ["--until=BPO1"],
@@ -237,7 +284,7 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_at_transition_to='"Cancun"',
+                valid_at_transition_to="Cancun",
             ),
             ["--fork=Cancun"],
             {"passed": 1, "failed": 0, "skipped": 0, "errors": 0},
@@ -245,7 +292,7 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_at_transition_to='"Cancun"',
+                valid_at_transition_to="Cancun",
             ),
             ["--from=Cancun", "--until=Prague"],
             {"passed": 1, "failed": 0, "skipped": 0, "errors": 0},
@@ -253,7 +300,106 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_at_transition_to='"BPO1"',
+                pytest.mark.parametrize(
+                    ["arg1"],
+                    [
+                        pytest.param(
+                            "val1",
+                            marks=pytest.mark.valid_from("London"),
+                        ),
+                        pytest.param("val2"),
+                    ],
+                ),
+                pytest.mark.valid_from("Berlin"),
+            ),
+            ["--from=Berlin", "--until=Paris"],
+            {"passed": 5, "failed": 0, "skipped": 0, "errors": 0},
+            id="parametrize_with_valid_from",
+        ),
+        pytest.param(
+            generate_test(
+                pytest.mark.parametrize(
+                    ["arg1"],
+                    [
+                        pytest.param(
+                            "val1",
+                            marks=pytest.mark.valid_until("London"),
+                        ),
+                        pytest.param("val2"),
+                    ],
+                ),
+                pytest.mark.valid_from("Berlin"),
+            ),
+            ["--from=Berlin", "--until=Paris"],
+            {"passed": 5, "failed": 0, "skipped": 0, "errors": 0},
+            id="parametrize_with_valid_until",
+        ),
+        pytest.param(
+            generate_test(
+                pytest.mark.parametrize(
+                    ["arg1"],
+                    [
+                        pytest.param(
+                            "val1",
+                            marks=pytest.mark.valid_until("London"),
+                        ),
+                        pytest.param(
+                            "val2",
+                            marks=pytest.mark.valid_from("London"),
+                        ),
+                    ],
+                ),
+                pytest.mark.valid_from("Berlin"),
+            ),
+            ["--from=Berlin", "--until=Paris"],
+            {"passed": 4, "failed": 0, "skipped": 0, "errors": 0},
+            id="parametrize_with_valid_until_valid_from_multiple_parameters",
+        ),
+        pytest.param(
+            generate_test(
+                pytest.mark.parametrize(
+                    ["arg1"],
+                    [
+                        pytest.param(
+                            "val1",
+                            marks=[
+                                pytest.mark.valid_until("Paris"),
+                                pytest.mark.valid_from("London"),
+                            ],
+                        ),
+                        pytest.param("val2"),
+                    ],
+                ),
+                pytest.mark.valid_from("Berlin"),
+            ),
+            ["--from=Berlin", "--until=Shanghai"],
+            {"passed": 6, "failed": 0, "skipped": 0, "errors": 0},
+            id="parametrize_with_valid_until_valid_from_single_parameter",
+        ),
+        pytest.param(
+            generate_test(
+                pytest.mark.parametrize(
+                    ["arg1"],
+                    [
+                        pytest.param(
+                            "val1",
+                            marks=[
+                                pytest.mark.valid_from("London"),
+                                pytest.mark.valid_before("Paris"),
+                            ],
+                        ),
+                        pytest.param("val2"),
+                    ],
+                ),
+                pytest.mark.valid_from("Berlin"),
+            ),
+            ["--from=Berlin", "--until=Shanghai"],
+            {"passed": 5, "failed": 0, "skipped": 0, "errors": 0},
+            id="parametrize_with_valid_from_valid_before_single_parameter",
+        ),
+        pytest.param(
+            generate_test(
+                valid_at_transition_to="BPO1",
                 valid_for_bpo_forks="",
             ),
             ["--fork=Osaka"],
@@ -263,7 +409,7 @@ def test_case(state_test):
         ),
         pytest.param(
             generate_test(
-                valid_at_transition_to='"BPO1"',
+                valid_at_transition_to="BPO1",
                 valid_for_bpo_forks="",
             ),
             ["--from=Osaka", "--until=Osaka"],

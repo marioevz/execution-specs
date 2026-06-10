@@ -137,10 +137,16 @@ addopts = [
     "--ignore=src/execution_testing/cli/pytest_commands/plugins/consume/simulators/",
 ]
 markers = [
-    "pre_alloc_group: Custom marker for pre-allocation grouping",
-    "some_mark: Test marker for parametrizer tests",
     "eip_checklist: Custom marker for EIP checklist tests",
+    "pre_alloc_group: Custom marker for pre-allocation grouping",
     "slow: Marks tests as slow running",
+    "some_mark: Test marker for parametrizer tests",
+    "state_test_only: Used in fill unit tests",
+    "valid_at_transition_to: Used in fill unit tests",
+    "valid_before: Used in fill unit tests",
+    "valid_for_bpo_forks: Used in fill unit tests",
+    "valid_from: Used in fill unit tests",
+    "valid_until: Used in fill unit tests",
 ]
 
 [tool.uv]

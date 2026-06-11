@@ -850,6 +850,13 @@ class Transaction(
         state_gas_reservoir_enabled: bool = False,
     ) -> None:
         """Set the transaction gas limit if unset."""
+        if self.state_gas_reservoir > 0 and not state_gas_reservoir_enabled:
+            raise Exception(
+                "test correctness: transaction requests a state gas "
+                f"reservoir of {self.state_gas_reservoir} but the fork "
+                "does not enable the state gas reservoir; the request "
+                "would be silently ignored."
+            )
         if "gas_limit" not in self.model_fields_set or self.gas_limit is None:
             tx_gas_limit = max_gas_limit
             if state_gas_reservoir_enabled:

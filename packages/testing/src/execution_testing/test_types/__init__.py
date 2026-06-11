@@ -47,6 +47,7 @@ from .transaction_types import (
     TransactionDefaults,
     TransactionTestMetadata,
     TransactionType,
+    calculate_max_transaction_gas_limit,
 )
 from .utils import Removable, keccak256
 
@@ -88,6 +89,7 @@ __all__ = (
     "Withdrawal",
     "WithdrawalRequest",
     "add_kzg_version",
+    "calculate_max_transaction_gas_limit",
     "ceiling_division",
     "compute_create_address",
     "compute_create2_address",

@@ -92,6 +92,7 @@ from execution_testing.test_types import (
     TestPhase,
     Transaction,
     Withdrawal,
+    calculate_max_transaction_gas_limit,
 )
 from execution_testing.test_types.block_access_list import (
     BlockAccessList,
@@ -803,42 +804,6 @@ class BlockchainTest(BaseTest):
             ).with_rlp(txs=[]),
         )
 
-    @staticmethod
-    def calculate_max_transaction_gas_limit(
-        txs: List[Transaction], env: Environment, fork: Fork
-    ) -> int:
-        """
-        Calculate the maximum gas limit that can be set in a transaction
-        given a list of transactions with and without gas-limits set
-        and a maximum available environment gas.
-        """
-        available_gas = int(env.gas_limit)
-        unset_gas_limit_tx_count = 0
-        for tx in txs:
-            if tx.gas_limit is None:
-                unset_gas_limit_tx_count += 1
-            else:
-                available_gas -= int(tx.gas_limit)
-
-        if unset_gas_limit_tx_count == 0:
-            return 0
-
-        if available_gas <= 0:
-            raise Exception(
-                "test correctness: unable to automatically calculate gas "
-                "limit for transactions (no remaining gas: explicit "
-                "transaction gas limits already consume the full "
-                f"environment gas limit of {int(env.gas_limit)})."
-            )
-
-        max_tx_gas_limit = available_gas // unset_gas_limit_tx_count
-        tx_gas_limit_cap = fork.transaction_gas_limit_cap()
-        if fork.state_gas_reservoir_enabled():
-            tx_gas_limit_cap = None
-        if tx_gas_limit_cap:
-            max_tx_gas_limit = min(max_tx_gas_limit, tx_gas_limit_cap)
-        return max_tx_gas_limit
-
     def generate_block_data(
         self,
         t8n: FillerBackend,
@@ -861,8 +826,8 @@ class BlockchainTest(BaseTest):
         env = env.set_fork_requirements(fork)
         txs = block.txs[:]
         if any(tx.gas_limit is None for tx in block.txs):
-            max_tx_gas_limit = self.calculate_max_transaction_gas_limit(
-                txs, env, fork
+            max_tx_gas_limit = calculate_max_transaction_gas_limit(
+                txs, env_gas_limit=int(env.gas_limit), fork=fork
             )
             for tx in txs:
                 tx.set_gas_limit(

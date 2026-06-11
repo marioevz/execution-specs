@@ -22,6 +22,7 @@ from execution_testing.test_types import (
     Environment,
     NetworkWrappedTransaction,
     Transaction,
+    calculate_max_transaction_gas_limit,
 )
 from execution_testing.test_types.transaction_types import (
     TransactionTestMetadata,
@@ -167,8 +168,8 @@ class BlobTransaction(BaseExecute):
                 txs.append(tx.tx)
             else:
                 txs.append(tx)
-        max_tx_gas_limit = self.calculate_max_transaction_gas_limit(
-            txs, env, fork
+        max_tx_gas_limit = calculate_max_transaction_gas_limit(
+            txs, env_gas_limit=int(env.gas_limit), fork=fork
         )
         for tx in txs:
             tx.set_gas_limit(

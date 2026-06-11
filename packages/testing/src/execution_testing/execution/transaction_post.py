@@ -19,6 +19,7 @@ from execution_testing.test_types import (
     TestPhase,
     Transaction,
     TransactionTestMetadata,
+    calculate_max_transaction_gas_limit,
 )
 
 from .base import BaseExecute, ExecuteResult
@@ -52,8 +53,8 @@ class TransactionPost(BaseExecute):
     ) -> None:
         """Prepare transactions by setting their final gas properties."""
         for block in self.blocks:
-            max_tx_gas_limit = self.calculate_max_transaction_gas_limit(
-                block, env, fork
+            max_tx_gas_limit = calculate_max_transaction_gas_limit(
+                block, env_gas_limit=int(env.gas_limit), fork=fork
             )
             for tx in block:
                 tx.set_gas_limit(

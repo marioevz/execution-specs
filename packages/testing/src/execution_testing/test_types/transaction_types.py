@@ -943,6 +943,49 @@ class Transaction(
         return self.__repr__()
 
 
+def calculate_max_transaction_gas_limit(
+    txs: Sequence[Transaction],
+    *,
+    env_gas_limit: int,
+    fork: Fork,
+) -> int:
+    """
+    Calculate the maximum gas limit that can be set in a transaction
+    given a list of transactions with and without gas limits set and
+    the maximum available environment gas.
+
+    Return 0 if no transaction requires an implicit gas limit. Raise a
+    test correctness error if transactions with implicit gas limits
+    are left without remaining gas.
+    """
+    available_gas = env_gas_limit
+    unset_gas_limit_tx_count = 0
+    for tx in txs:
+        if tx.gas_limit is None:
+            unset_gas_limit_tx_count += 1
+        else:
+            available_gas -= int(tx.gas_limit)
+
+    if unset_gas_limit_tx_count == 0:
+        return 0
+
+    if available_gas <= 0:
+        raise Exception(
+            "test correctness: unable to automatically calculate gas "
+            "limit for transactions (no remaining gas: explicit "
+            "transaction gas limits already consume the full "
+            f"environment gas limit of {env_gas_limit})."
+        )
+
+    max_gas_limit = available_gas // unset_gas_limit_tx_count
+    tx_gas_limit_cap = fork.transaction_gas_limit_cap()
+    if fork.state_gas_reservoir_enabled():
+        tx_gas_limit_cap = None
+    if tx_gas_limit_cap:
+        max_gas_limit = min(max_gas_limit, tx_gas_limit_cap)
+    return max_gas_limit
+
+
 class NetworkWrappedTransaction(CamelModel, RLPSerializable):
     """
     Network wrapped transaction as defined in

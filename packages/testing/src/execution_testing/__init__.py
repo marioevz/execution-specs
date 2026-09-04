@@ -2,7 +2,6 @@
 
 from .base_types import (
     AccessList,
-    Account,
     Address,
     Bytes,
     BytesConcatenation,
@@ -51,6 +50,7 @@ from .specs import (
 from .test_types import (
     DETERMINISTIC_FACTORY_ADDRESS,
     EOA,
+    Account,
     Alloc,
     AuthorizationTuple,
     BalAccountAbsentValues,

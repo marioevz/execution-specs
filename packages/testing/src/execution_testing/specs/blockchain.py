@@ -1740,6 +1740,10 @@ class BlockchainTest(BaseTest):
         # placeholder — ClientBackend ignores it.
         alloc: Alloc | LazyAlloc = self.pre
         context = RecordedPostStateContext()
+        # Relative post expectations compare against the live state right
+        # before the first execution block, after the setup blocks funded
+        # and deployed the test's accounts.
+        pre_state_block_number = start_block_number
         for block in blocks_to_process:
             built_block = self.generate_block_data(
                 t8n=t8n,
@@ -1762,6 +1766,8 @@ class BlockchainTest(BaseTest):
             )
             if payload.phase == TestPhase.SETUP:
                 setup_payloads.append(payload)
+                if not execution_payloads:
+                    pre_state_block_number = int(built_block.header.number)
             else:
                 execution_payloads.append(payload)
                 block_opcode_count = t8n.extract_block_opcode_count(
@@ -1798,8 +1804,11 @@ class BlockchainTest(BaseTest):
 
         if self.post.root:
             got_alloc = t8n.get_post_state_alloc(self.post)
+            pre_alloc = t8n.get_post_state_alloc(
+                self.post, block_number=pre_state_block_number
+            )
             self.post.verify_post_alloc(
-                pre_alloc=self.pre, got_alloc=got_alloc, context=context
+                pre_alloc=pre_alloc, got_alloc=got_alloc, context=context
             )
 
         fixture = BlockchainEngineStatefulFixture(

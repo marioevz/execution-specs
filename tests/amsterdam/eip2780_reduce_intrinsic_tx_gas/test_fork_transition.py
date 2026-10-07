@@ -335,6 +335,10 @@ def test_setcode_tx_across_amsterdam_transition(
             sender=sender,
             to=recipient,
             authorization_list=[authorization],
+            # A non-zero tip keeps the fee recipient's payment in the
+            # fixture.
+            max_fee_per_gas=10,
+            max_priority_fee_per_gas=3,
             expected_receipt=TransactionReceipt(
                 cumulative_gas_used=total_gas,
             ),

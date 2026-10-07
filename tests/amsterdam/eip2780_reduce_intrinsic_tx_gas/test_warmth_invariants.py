@@ -108,6 +108,9 @@ def test_intrinsic_charges_recipient_in_access_list(
 
 
 @EIPChecklist.GasCostChanges.Test.GasUpdatesMeasurement()
+@pytest.mark.execute(
+    pytest.mark.skip(reason="requires env.fee_recipient as block coinbase")
+)
 @pytest.mark.parametrize(
     "value",
     [
@@ -320,6 +323,9 @@ def test_top_frame_charges_delegation_in_access_list(
 
 
 @EIPChecklist.GasCostChanges.Test.GasUpdatesMeasurement()
+@pytest.mark.execute(
+    pytest.mark.skip(reason="requires env.fee_recipient as block coinbase")
+)
 @pytest.mark.parametrize(
     "value",
     [

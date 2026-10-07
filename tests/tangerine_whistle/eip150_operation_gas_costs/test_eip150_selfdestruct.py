@@ -21,7 +21,7 @@ from execution_testing import (
     Block,
     BlockAccessListExpectation,
     BlockchainTestFiller,
-    GasCost,
+    GasFee,
     Initcode,
     Op,
     Transaction,
@@ -1296,7 +1296,7 @@ def test_selfdestruct_send_to_sender(
     )
     alice_post = Account(
         nonce=1,
-        balance_change=originator_balance - GasCost(tx, gas=gas_used),
+        balance_change=originator_balance - GasFee(tx, gas=gas_used),
     )
 
     expected_bal: BlockAccessListExpectation | None = None

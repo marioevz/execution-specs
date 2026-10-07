@@ -158,7 +158,7 @@ class Account(BaseAccount):
     post-state assertions.
 
     Accepts an integer, or an expression combining integers with fee terms
-    (`GasCost`, `Tip`, `BlobCost`) that are resolved against the block in
+    (`GasFee`, `Tip`, `BlobFee`) that are resolved against the block in
     which each transaction landed.
     """
 

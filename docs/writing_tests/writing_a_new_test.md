@@ -290,10 +290,10 @@ It can verify the following properties of an account:
 
 - `balance_change`: the expected balance relative to the pre-state. It can be
   an integer or combine integers with fee terms that are resolved against the
-  block each transaction landed in: `GasCost(tx, gas=...)` for the fee the
+  block each transaction landed in: `GasFee(tx, gas=...)` for the fee the
   sender pays, `Tip(tx, gas=...)` for the priority fee the fee recipient earns
-  and `BlobCost(tx, blob_gas=...)` for the blob fee. For example,
-  `balance_change=-value - GasCost(tx, gas=gas_used)`. Take the gas amounts from
+  and `BlobFee(tx, blob_gas=...)` for the blob fee. For example,
+  `balance_change=-value - GasFee(tx, gas=gas_used)`. Take the gas amounts from
   the framework's calculators, never from execution results.
 
 `balance` and `balance_change` (and `nonce` and `nonce_change`) cannot be set

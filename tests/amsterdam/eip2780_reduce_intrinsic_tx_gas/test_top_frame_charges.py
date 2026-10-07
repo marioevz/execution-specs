@@ -34,7 +34,7 @@ from execution_testing import (
     Environment,
     Fork,
     GasConsumer,
-    GasCost,
+    GasFee,
     Header,
     Op,
     RecipientType,
@@ -141,7 +141,7 @@ def test_top_frame_state_charge(
         gas_limit=gas_limit,
     )
 
-    sender_balance_change = -GasCost(tx, gas=gas_used)
+    sender_balance_change = -GasFee(tx, gas=gas_used)
     target_balance_change: BalanceExpression | Tip | int = (
         Tip(tx, gas=gas_used) if recipient_is_coinbase else 0
     )
@@ -216,7 +216,7 @@ def test_top_frame_state_charge_empty_precompile(
         gas_limit=gas_limit,
     )
 
-    sender_balance_change = -GasCost(tx, gas=gas_limit)
+    sender_balance_change = -GasFee(tx, gas=gas_limit)
     precompile_balance_change = 0
     if scenario == "success":
         sender_balance_change -= value
@@ -349,7 +349,7 @@ def test_top_frame_new_account_skipped_for_nonce_only_recipient(
         gas_limit=gas_limit,
     )
 
-    sender_balance_change = -value - GasCost(tx, gas=intrinsic_gas)
+    sender_balance_change = -value - GasFee(tx, gas=intrinsic_gas)
     post = {
         sender: Account(nonce=1, balance_change=sender_balance_change),
         target: Account(nonce=1, balance=value),
@@ -659,7 +659,7 @@ def test_top_frame_execution_charge(
         gas_limit=gas_limit,
     )
 
-    sender_balance_change = -GasCost(tx=tx, gas=total_gas_cost)
+    sender_balance_change = -GasFee(tx=tx, gas=total_gas_cost)
     target_balance = 0
     if outcome == "success":
         sender_balance_change -= value
@@ -1051,18 +1051,18 @@ def test_receipt_status_top_frame_oog_between_successful_txs(
     post: dict[Address, Account | None] = {
         ok_sender_1: Account(
             nonce=1,
-            balance_change=-value - GasCost(ok_tx_1, gas=ok_intrinsic_gas),
+            balance_change=-value - GasFee(ok_tx_1, gas=ok_intrinsic_gas),
         ),
         ok_sender_2: Account(
             nonce=1,
-            balance_change=-value - GasCost(ok_tx_2, gas=ok_intrinsic_gas),
+            balance_change=-value - GasFee(ok_tx_2, gas=ok_intrinsic_gas),
         ),
         ok_recipient: Account(balance=1 + 2 * value),
         # The failing transaction is included: the nonce bumps and the
         # full gas limit is paid, but nothing else happens.
         fail_sender: Account(
             nonce=1,
-            balance_change=-GasCost(fail_tx, gas=fail_gas_limit),
+            balance_change=-GasFee(fail_tx, gas=fail_gas_limit),
         ),
     }
     if failure_mode is TopFrameFailureMode.CREATE_STATE_OOG:

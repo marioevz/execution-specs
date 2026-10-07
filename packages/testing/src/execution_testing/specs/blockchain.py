@@ -86,6 +86,7 @@ from execution_testing.fixtures.common import (
 from execution_testing.fixtures.post_verifications import PostVerifications
 from execution_testing.forks import Fork, Requests
 from execution_testing.test_types import (
+    Account,
     Alloc,
     Environment,
     PostStateContext,
@@ -1804,8 +1805,19 @@ class BlockchainTest(BaseTest):
 
         if self.post.root:
             got_alloc = t8n.get_post_state_alloc(self.post)
-            pre_alloc = t8n.get_post_state_alloc(
-                self.post, block_number=pre_state_block_number
+            # Only accounts expecting a change need their pre-state, and
+            # only their balance and nonce.
+            relative = Alloc(
+                {
+                    address: Account()
+                    for address, account in self.post.root.items()
+                    if account is not None
+                    and {"balance_change", "nonce_change"}
+                    & account.model_fields_set
+                }
+            )
+            pre_alloc = t8n.eth_rpc.get_alloc(
+                relative, block_number=pre_state_block_number, skip_code=True
             )
             self.post.verify_post_alloc(
                 pre_alloc=pre_alloc, got_alloc=got_alloc, context=context

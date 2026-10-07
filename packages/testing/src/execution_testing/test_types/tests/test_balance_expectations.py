@@ -249,6 +249,19 @@ def test_verify_post_alloc_with_context() -> None:
     post.verify_post_alloc(pre_alloc=pre, got_alloc=got, context=context)
 
 
+def test_tip_on_account_other_than_fee_recipient() -> None:
+    """Test that a tip is only accepted on the block's fee recipient."""
+    tx = legacy_tx()
+    expected = Account(balance_change=Tip(tx, gas=21_000))
+    with pytest.raises(Tip.WrongRecipientError):
+        expected.check_alloc(
+            address=Address(1),
+            pre_account=None,
+            account=Account(balance=21_000 * (10 - BASE_FEE)),
+            context=context_for(tx),
+        )
+
+
 def test_empty_context() -> None:
     """Test that a fee term cannot resolve in an empty context."""
     expected = Account(balance_change=-GasCost(legacy_tx(), gas=1))

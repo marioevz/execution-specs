@@ -50,7 +50,7 @@ from execution_testing.base_types.conversions import (
     NumberConvertible,
 )
 
-from .balance_expectations import BalanceExpression, PostStateContext
+from .balance_expectations import BalanceExpression, PostStateContext, Tip
 from .utils import keccak256
 
 
@@ -352,6 +352,9 @@ class Account(BaseAccount):
                 )
 
         if "balance_change" in self.model_fields_set:
+            for _, term in self.balance_change.terms:
+                if isinstance(term, Tip):
+                    term.check_recipient(address, context)
             want_balance = ZeroPaddedHexNumber(
                 pre_account.balance + self.balance_change.resolve(context)
             )

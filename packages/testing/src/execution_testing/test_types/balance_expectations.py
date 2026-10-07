@@ -218,12 +218,29 @@ class Tip(BalanceTerm):
         super().__init__(tx)
         self.gas = gas
 
+    class WrongRecipientError(Exception):
+        """A tip was expected on an account that is not the fee recipient."""
+
     def resolve(self, context: PostStateContext) -> int:
         """Return the priority fee in wei."""
         landing = context.landing(self.key)
         return self.gas * (
             landing.effective_gas_price() - landing.base_fee_per_gas()
         )
+
+    def check_recipient(
+        self, recipient: Address, context: PostStateContext
+    ) -> None:
+        """
+        Raise unless `recipient` is the fee recipient of the block in which
+        the transaction landed.
+        """
+        fee_recipient = context.landing(self.key).fee_recipient()
+        if fee_recipient != recipient:
+            raise Tip.WrongRecipientError(
+                f"{self} is expected on {recipient}, but the transaction "
+                f"landed in a block whose fee recipient is {fee_recipient}"
+            )
 
     def __str__(self) -> str:
         """Describe the term."""

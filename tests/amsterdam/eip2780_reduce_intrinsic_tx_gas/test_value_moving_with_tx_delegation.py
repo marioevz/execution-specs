@@ -128,9 +128,6 @@ def test_tx_installs_delegation_on_funded_recipient(
         to=target,
         value=value,
         authorization_list=authorization_list,
-        # A non-zero tip keeps the fee recipient's payment in the fixture.
-        max_fee_per_gas=10,
-        max_priority_fee_per_gas=3,
     )
 
     post = {
@@ -220,9 +217,6 @@ def test_tx_installs_delegation_on_empty_recipient(
         to=target,
         value=value,
         authorization_list=authorization_list,
-        # A non-zero tip keeps the fee recipient's payment in the fixture.
-        max_fee_per_gas=10,
-        max_priority_fee_per_gas=3,
     )
 
     post = {
@@ -345,9 +339,6 @@ def test_tx_installs_delegation_on_sender(
         to=target,
         value=value,
         authorization_list=authorization_list,
-        # A non-zero tip keeps the fee recipient's payment in the fixture.
-        max_fee_per_gas=10,
-        max_priority_fee_per_gas=3,
     )
 
     if call_target == "self":

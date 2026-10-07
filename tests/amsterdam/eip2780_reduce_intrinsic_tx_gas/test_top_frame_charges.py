@@ -130,7 +130,7 @@ def test_top_frame_state_charge(
     elif outcome == "success":
         gas_limit = gas_used
     elif outcome == "success_with_unused_gas":
-        gas_limit = gas_used + 1000
+        gas_limit = gas_used + 1
     else:
         raise ValueError(f"unknown outcome: {outcome}")
 
@@ -650,7 +650,7 @@ def test_top_frame_execution_charge(
         # Two ``PUSH`` opcodes feed ``REVERT`` before it halts.
         revert_exec_gas = revert_code.gas_cost(fork)
         total_gas_cost = intrinsic_gas + top_frame_gas + revert_exec_gas
-        gas_limit = total_gas_cost + 1000
+        gas_limit = total_gas_cost + 1
 
     tx = Transaction(
         sender=sender,

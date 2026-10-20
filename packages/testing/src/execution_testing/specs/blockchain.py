@@ -171,7 +171,7 @@ def rejected_transactions_accessed_addresses(
         if tx.sender is not None:
             addresses.append(Address(tx.sender))
         if tx.to is not None:
-            addresses.append(Address(tx.to))
+            addresses.append(tx.to)
         for authorization in tx.authorization_list or []:
             if authorization.signer is not None:
                 addresses.append(Address(authorization.signer))

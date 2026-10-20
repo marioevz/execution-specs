@@ -1270,6 +1270,22 @@ class BlockchainTest(BaseTest):
                 )
             )
             header.block_access_list_hash = Hash(bal.rlp.keccak256())
+            max_items = (
+                header.gas_limit // fork.gas_costs().BLOCK_ACCESS_LIST_ITEM
+            )
+            # A block the transition tool rejects itself is reported below.
+            if (
+                transition_tool_output.result.block_exception is None
+                and bal.item_count() > max_items
+            ):
+                raise Exception(
+                    f"test correctness: block number {int(env.number)} "
+                    "rejects a transaction, and listing the accounts it "
+                    f"touches takes the block access list to "
+                    f"{bal.item_count()} items, over the EIP-7928 cap of "
+                    f"{max_items} at this gas limit. The fixture would carry "
+                    "two defects and name one. Raise the block gas limit."
+                )
 
         built_block_kwargs: Dict[str, Any] = dict(
             header=header,

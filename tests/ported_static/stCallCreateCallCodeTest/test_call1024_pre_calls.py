@@ -8,9 +8,7 @@ state_tests/stCallCreateCallCodeTest/Call1024PreCallsFiller.json
 import pytest
 from execution_testing import (
     Account,
-    Address,
     Alloc,
-    Bytes,
     Environment,
     StateTestFiller,
     Transaction,
@@ -49,7 +47,6 @@ REFERENCE_SPEC_VERSION = "N/A"
         ),
     ],
 )
-@pytest.mark.pre_alloc_mutable
 def test_call1024_pre_calls(
     state_test: StateTestFiller,
     pre: Alloc,
@@ -59,10 +56,9 @@ def test_call1024_pre_calls(
     v: int,
 ) -> None:
     """Calldepth with subcall."""
-    addr = Address(0xD9B97C712EBCE43F3C19179BBEF44B550F9E8BC0)
-    sender = pre.fund_eoa(amount=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
+    addr = pre.fund_eoa()
+    sender = pre.fund_eoa()
 
-    pre[addr] = Account(balance=7000)
     # Source: lll
     # { [[ 2 ]] (CALL 0xffff <eoa:0xaaaf5374fce5edbc8e2a8697c15331677e6ebf0b> 1 0 0 0 0) [[ 3 ]] (CALL 0xffff <eoa:0xaaaf5374fce5edbc8e2a8697c15331677e6ebf0b> 1 0 0 0 0)  [[ 0 ]] (ADD @@0 1) [[ 1 ]] (CALL 0xfffffffffff <contract:target:0xbbbf5374fce5edbc8e2a8697c15331677e6ebf0b> 0 0 0 0 0) }  # noqa: E501
     target = pre.deploy_contract(
@@ -70,7 +66,7 @@ def test_call1024_pre_calls(
             key=0x2,
             value=Op.CALL(
                 gas=0xFFFF,
-                address=0xD9B97C712EBCE43F3C19179BBEF44B550F9E8BC0,
+                address=addr,
                 value=0x1,
                 args_offset=0x0,
                 args_size=0x0,
@@ -82,7 +78,7 @@ def test_call1024_pre_calls(
             key=0x3,
             value=Op.CALL(
                 gas=0xFFFF,
-                address=0xD9B97C712EBCE43F3C19179BBEF44B550F9E8BC0,
+                address=addr,
                 value=0x1,
                 args_offset=0x0,
                 args_size=0x0,
@@ -122,9 +118,6 @@ def test_call1024_pre_calls(
 
     post, _exc = resolve_expect_post(expect_entries_, d, g, v, fork)
 
-    tx_data = [
-        Bytes(""),
-    ]
     tx_gas = [9214364837600034817, 11837600034817]
     tx_value = [10]
 
@@ -133,7 +126,6 @@ def test_call1024_pre_calls(
     tx = Transaction(
         sender=sender,
         to=target,
-        data=tx_data[d],
         gas_limit=tx_gas[g],
         value=tx_value[v],
         error=_exc,

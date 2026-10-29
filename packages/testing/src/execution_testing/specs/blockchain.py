@@ -802,22 +802,6 @@ PAYLOAD_HEADER_FIELDS = frozenset(FixtureHeader.model_fields) & frozenset(
 """Header fields that the engine ``ExecutionPayload`` carries by name."""
 
 
-TEST_SET_HEADER_FIELDS = (
-    "difficulty",
-    "prev_randao",
-    "fee_recipient",
-    "gas_limit",
-    "base_fee_per_gas",
-    "excess_blob_gas",
-    "parent_beacon_block_root",
-    "number",
-    "timestamp",
-    "extra_data",
-    "slot_number",
-)
-"""``Block`` fields a test sets to choose the header field of the same name."""
-
-
 GENESIS_ENVIRONMENT_DEFAULTS: Dict[str, Any] = {
     "fee_recipient": 0,
     "number": 0,
@@ -1286,9 +1270,10 @@ class BlockchainTest(BaseTest):
             fork=fork,
         )
 
-        # What the test set is what it asked for: a backend that built
-        # anything else would fill a different test.
-        for field in TEST_SET_HEADER_FIELDS:
+        # Every header field the test set is one it asked for: a backend
+        # that built anything else would fill a different test. A test
+        # changes a computed field with ``rlp_modifier`` instead.
+        for field in Header.model_fields:
             requested = getattr(block, field)
             if requested is None or isinstance(requested, Removable):
                 continue

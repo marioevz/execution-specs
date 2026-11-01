@@ -3,6 +3,7 @@ Ori Pomerantz   qbzzt1@gmail.com.
 
 Ported from:
 state_tests/stEIP1559/gasPriceDiffPlacesFiller.yml
+state_tests/stEIP1559/gasPriceDiffPlacesOsakaFiller.yml
 """
 
 import pytest
@@ -26,10 +27,12 @@ REFERENCE_SPEC_VERSION = "N/A"
 
 
 @pytest.mark.ported_from(
-    ["state_tests/stEIP1559/gasPriceDiffPlacesFiller.yml"],
+    [
+        "state_tests/stEIP1559/gasPriceDiffPlacesFiller.yml",
+        "state_tests/stEIP1559/gasPriceDiffPlacesOsakaFiller.yml",
+    ],
 )
 @pytest.mark.valid_from("Cancun")
-@pytest.mark.valid_until("Prague")
 @pytest.mark.parametrize(
     "d, g, v",
     [
@@ -242,6 +245,7 @@ REFERENCE_SPEC_VERSION = "N/A"
             0,
             0,
             id="d34",
+            marks=pytest.mark.valid_until("Prague"),
         ),
     ],
 )
@@ -1222,9 +1226,15 @@ def test_gas_price_diff_places(
         Bytes("693c6139") + Hash(0xF5FA),
         Bytes("693c6139") + Hash(contract_12, left_padding=True),
     ]
-    tx_gas = [4503599627370496]
-
-    env = Environment(base_fee_per_gas=10, gas_limit=HIGH_GAS_LIMIT)
+    if fork.transaction_gas_limit_cap() is None:
+        tx_gas = [4503599627370496]
+        env = Environment(
+            base_fee_per_gas=10,
+            gas_limit=HIGH_GAS_LIMIT,
+        )
+    else:
+        tx_gas = [1000000]
+        env = Environment(base_fee_per_gas=10)
 
     tx = Transaction(
         sender=sender,

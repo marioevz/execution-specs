@@ -3,6 +3,7 @@ Ori Pomerantz   qbzzt1@gmail.com.
 
 Ported from:
 state_tests/stEIP1559/baseFeeDiffPlacesFiller.yml
+state_tests/stEIP1559/baseFeeDiffPlacesOsakaFiller.yml
 """
 
 import pytest
@@ -24,10 +25,12 @@ REFERENCE_SPEC_VERSION = "N/A"
 
 
 @pytest.mark.ported_from(
-    ["state_tests/stEIP1559/baseFeeDiffPlacesFiller.yml"],
+    [
+        "state_tests/stEIP1559/baseFeeDiffPlacesFiller.yml",
+        "state_tests/stEIP1559/baseFeeDiffPlacesOsakaFiller.yml",
+    ],
 )
 @pytest.mark.valid_from("Cancun")
-@pytest.mark.valid_until("Prague")
 @pytest.mark.parametrize(
     "d, g, v",
     [
@@ -240,6 +243,7 @@ REFERENCE_SPEC_VERSION = "N/A"
             0,
             0,
             id="d34",
+            marks=pytest.mark.valid_until("Prague"),
         ),
     ],
 )
@@ -268,15 +272,6 @@ def test_base_fee_diff_places(
     contract_11 = Address(0x00000000000000000000000000000000DEADDEAD)
     contract_12 = Address(0x00000000000000000000000000000060BACCFA57)
     sender = pre.fund_eoa(amount=0x3635C9ADC5DEA00000, nonce=1)
-
-    env = Environment(
-        fee_recipient=coinbase,
-        number=1,
-        timestamp=1000,
-        prev_randao=0x20000,
-        base_fee_per_gas=10,
-        gas_limit=4503599627370496,
-    )
 
     # Source: yul
     # berlin {
@@ -1256,7 +1251,25 @@ def test_base_fee_diff_places(
         Bytes("693c6139") + Hash(0xF5FA),
         Bytes("693c6139") + Hash(contract_12, left_padding=True),
     ]
-    tx_gas = [4503599627370496]
+    if fork.transaction_gas_limit_cap() is None:
+        tx_gas = [4503599627370496]
+        env = Environment(
+            fee_recipient=coinbase,
+            number=1,
+            timestamp=1000,
+            prev_randao=0x20000,
+            base_fee_per_gas=10,
+            gas_limit=4503599627370496,
+        )
+    else:
+        tx_gas = [1000000]
+        env = Environment(
+            fee_recipient=coinbase,
+            number=1,
+            timestamp=1000,
+            prev_randao=0x20000,
+            base_fee_per_gas=10,
+        )
 
     tx = Transaction(
         sender=sender,

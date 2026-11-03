@@ -26,6 +26,7 @@ from .checklists import EIPChecklist
 from .exceptions import (
     BlockException,
     EngineAPIError,
+    MempoolException,
     TransactionException,
 )
 from .fixtures import BaseFixture, FixtureCollector
@@ -57,6 +58,8 @@ from .specs import (
     BlockchainTestFiller,
     BlockVerification,
     Header,
+    MempoolTest,
+    MempoolTestFiller,
     NoTraceErrors,
     OpcodeTarget,
     ReceiptStatusExpected,
@@ -235,6 +238,9 @@ __all__ = (
     "JumpLoopGenerator",
     "Macro",
     "Macros",
+    "MempoolException",
+    "MempoolTest",
+    "MempoolTestFiller",
     "MemoryVariable",
     "NetworkWrappedTransaction",
     "NoTraceErrors",

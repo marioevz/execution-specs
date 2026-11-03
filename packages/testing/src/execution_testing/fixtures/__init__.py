@@ -22,6 +22,7 @@ from .collector import (
     merge_partial_fixture_files,
 )
 from .consume import FixtureConsumer
+from .mempool import MempoolFixture
 from .post_verifications import AccountCheck, PostVerifications
 from .pre_alloc_groups import (
     PreAllocGroup,
@@ -53,6 +54,7 @@ __all__ = [
     "PreAllocGroupBuilders",
     "PostVerifications",
     "PreAllocGroups",
+    "MempoolFixture",
     "StateFixture",
     "strip_fixture_format_from_node",
     "TestInfo",

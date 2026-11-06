@@ -19,7 +19,6 @@ REFERENCE_SPEC_GIT_PATH = "N/A"
 REFERENCE_SPEC_VERSION = "N/A"
 
 SENTINEL = 0x0BAD
-PRE_STORAGE = {0: SENTINEL, 20: SENTINEL}
 
 
 @pytest.mark.ported_from(
@@ -64,7 +63,9 @@ def test_sstore_sload(
     storage: dict,
 ) -> None:
     """Store values and copy them between slots with SLOAD."""
-    contract = pre.deploy_contract(code=code, storage=PRE_STORAGE)
+    contract = pre.deploy_contract(
+        code=code, storage={0: SENTINEL, 20: SENTINEL}
+    )
     tx = Transaction(sender=pre.fund_eoa(), to=contract)
     post = {contract: Account(storage=storage)}
     state_test(pre=pre, post=post, tx=tx)

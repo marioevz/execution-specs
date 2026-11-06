@@ -19,7 +19,6 @@ REFERENCE_SPEC_GIT_PATH = "N/A"
 REFERENCE_SPEC_VERSION = "N/A"
 
 SENTINEL = 0x0BAD
-PRE_STORAGE = {0: SENTINEL}
 
 
 @pytest.mark.ported_from(
@@ -44,7 +43,7 @@ def test_pc(
     storage: dict,
 ) -> None:
     """Store the program counter."""
-    contract = pre.deploy_contract(code=code, storage=PRE_STORAGE)
+    contract = pre.deploy_contract(code=code, storage={0: SENTINEL})
     tx = Transaction(sender=pre.fund_eoa(), to=contract)
     post = {contract: Account(storage=storage)}
     state_test(pre=pre, post=post, tx=tx)

@@ -40,6 +40,7 @@ from .helpers import (
     contract_address_from_hash,
     eoa_from_hash,
 )
+from .p256 import P256_SIGNATURE_LENGTH, P256Key
 from .phase_manager import TestPhase, TestPhaseManager
 from .receipt_types import (
     FrameReceipt,
@@ -118,6 +119,8 @@ __all__ = (
     "FrameStatus",
     "LogMismatchError",
     "NetworkWrappedTransaction",
+    "P256_SIGNATURE_LENGTH",
+    "P256Key",
     "PostStateContext",
     "Removable",
     "SECP256K1_SIGNATURE_LENGTH",
